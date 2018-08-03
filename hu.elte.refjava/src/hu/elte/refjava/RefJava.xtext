@@ -1,0 +1,9 @@
+grammar hu.elte.refjava.RefJava with org.eclipse.xtext.xbase.Xbase
+
+generate refJava "http://www.elte.hu/refjava/RefJava"
+
+Model:
+	greetings+=Greeting*;
+
+Greeting:
+	'Hello' name=ID '!';
