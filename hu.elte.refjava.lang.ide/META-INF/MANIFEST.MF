@@ -1,0 +1,16 @@
+Manifest-Version: 1.0
+Automatic-Module-Name: hu.elte.refjava.lang.ide
+Bundle-ManifestVersion: 2
+Bundle-Name: hu.elte.refjava.lang.ide
+Bundle-Vendor: My Company
+Bundle-Version: 1.0.0.qualifier
+Bundle-SymbolicName: hu.elte.refjava.lang.ide; singleton:=true
+Bundle-ActivationPolicy: lazy
+Require-Bundle: hu.elte.refjava,
+ org.eclipse.xtext.ide,
+ org.eclipse.xtext.xbase.ide,
+ org.antlr.runtime;bundle-version="[3.2.0,3.2.1)"
+Bundle-RequiredExecutionEnvironment: JavaSE-10
+Export-Package: hu.elte.refjava.lang.ide.contentassist.antlr,
+ hu.elte.refjava.lang.ide.contentassist.antlr.internal
+

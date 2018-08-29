@@ -1,0 +1,41 @@
+module hu.elte.refjava.lang.GenerateRefJava
+
+import org.eclipse.xtext.xtext.generator.*
+import org.eclipse.xtext.xtext.generator.model.project.*
+
+var rootPath = ".."
+
+Workflow {
+	component = XtextGenerator {
+		configuration = {
+			project = StandardProjectConfig {
+				baseName = "hu.elte.refjava.lang"
+				rootPath = rootPath
+
+				eclipsePlugin = {
+					enabled = true
+				}
+
+				createEclipseMetaData = true
+			}
+
+			code = {
+				encoding = "UTF-8"
+				lineDelimiter = "\n"
+			}
+		}
+
+		language = StandardLanguage {
+			name = "hu.elte.refjava.lang.RefJava"
+			fileExtensions = "refjava"
+
+			serializer = {
+				generateStub = false
+			}
+
+			validator = {
+				generateDeprecationValidation = true
+			}
+		}
+	}
+}

@@ -1,23 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<feature id="hu.elte.refjava.feature"
-	label="RefJava Feature "
-	version="1.0.0.qualifier">
-	<plugin
-			id="hu.elte.refjava"
-			download-size="0"
-			install-size="0"
-			version="0.0.0"
-			unpack="false"/>
-	<plugin
-			id="hu.elte.refjava.ide"
-			download-size="0"
-			install-size="0"
-			version="0.0.0"
-			unpack="false"/>
-	<plugin
-			id="hu.elte.refjava.ui"
-			download-size="0"
-			install-size="0"
-			version="0.0.0"
-			unpack="false"/>
+<feature
+      id="hu.elte.refjava.feature"
+      label="RefJava Feature "
+      version="1.0.0.qualifier">
+
+   <plugin
+         id="hu.elte.refjava.control"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="hu.elte.refjava"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="hu.elte.refjava.lang.ide"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
+   <plugin
+         id="hu.elte.refjava.lang.ui"
+         download-size="0"
+         install-size="0"
+         version="0.0.0"
+         unpack="false"/>
+
 </feature>

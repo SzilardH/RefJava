@@ -1,0 +1,207 @@
+grammar hu.elte.refjava.lang.RefJava with org.eclipse.xtext.xbase.Xbase
+generate refJava "http://www.elte.hu/refjava/lang/RefJava"
+
+import "http://www.eclipse.org/xtext/xbase/Xbase" as xbase
+import "http://www.eclipse.org/xtext/common/JavaVMTypes" as types
+
+///////////////
+// Structure //
+///////////////
+
+File:
+	'package' name=QualifiedName ';'
+	refactorings+=RefactoringRule*
+;
+
+RefactoringRule:
+	SchemeInstanceRule | CompositeRefactoringRule
+;
+
+SchemeInstanceRule:
+	 type=SchemeType 'refactoring' name=ID '('
+		(parameters+=PMetaVariable (',' parameters+=PMetaVariable)*)?
+	')'
+		matchingPattern=Pattern
+		'~'+
+		replacementPattern=Pattern
+	('target'
+		targetPattern=Pattern)?
+	((topDefinition?='top' 'level')?
+	'definition'
+	('in' definitionLocation=InDefinitionLocation)?
+		definitionPattern=Pattern)?
+	('when'
+		precondition=XExpression)?
+;
+
+enum SchemeType:
+	LOCAL='local' | BLOCK='block' | LAMBDA='lambda' | CLASS='class'
+;
+
+enum InDefinitionLocation:
+	CLASS='class' | SUPER='super'
+;
+
+CompositeRefactoringRule:
+	'composite' 'refactoring' name=ID '('
+		(parameters+=PMetaVariable (',' parameters+=PMetaVariable)*)?
+	')' 'do'
+		(steps+=XExpression ';')*
+	('when'
+		precondition=XExpression)?
+;
+
+//////////////
+// Patterns //
+//////////////
+
+PMetaVariable returns PExpression:
+	{PMetaVariable} '#' name=ID multi?='..'?
+;
+
+Pattern:
+	patterns+=PExpressionOrVarDeclaration =>(';' patterns+=PExpressionOrVarDeclaration)* ';'?
+		// =>: local, distinguishes semicolons
+;
+
+PExpressionOrVarDeclaration returns PExpression:
+	PDeclaration | PExpression
+		// do not change the order -- it does matter here!
+;
+
+PDeclaration returns PExpression:
+	PVariableDeclaration (
+		{PMethodDeclaration.prefix=current} '(' (
+			arguments+=FullJvmFormalParameter (',' arguments+=FullJvmFormalParameter)* | metaArguments=PMetaVariable
+		)? ')' (body=PBlockExpression | metaBody=PMetaVariable)
+	)?
+;
+
+PVariableDeclaration returns PVariableDeclaration:
+	=>({PVariableDeclaration} ( // =>: global, see PExpressionOrVarDeclaration->...->PFeatureCall
+		(visibility=Visibility | metaVisibility=PMetaVariable)? // for methods
+		(type=JvmTypeReference | metaType=PMetaVariable)
+		(name=ValidID | metaName=PMetaVariable)
+	)) ('=' right=PExpression)? 
+;
+
+enum Visibility:
+	PACKAGE='package' | PUBLIC='public' | PRIVATE='private' | PROTECTED='protected'
+;
+
+PExpression returns PExpression:
+	PMemberFeatureCall
+;
+
+PMemberFeatureCall returns PExpression:
+	PPrimaryExpression (
+		=>({PMemberFeatureCall.memberCallTarget=current} ".")
+		(feature=IdOrSuper | metaFeature=PMetaVariable) (
+			=>'(' (memberCallArguments+=PExpression (',' memberCallArguments+=PExpression)*)? ')'
+		)?
+	)*
+;
+
+PPrimaryExpression returns PExpression
+	: PConstructorCall
+	| PBlockExpression
+	| PFeatureCall
+	| PReturnExpression
+	| PTargetExpression
+	| PNothingExpression
+	| PMetaVariable
+		// no explicit metavariables here to preserve structure
+;
+
+PConstructorCall returns PExpression:
+	{PConstructorCall} 'new' constructor=[types::JvmConstructor|QualifiedName]
+	=>'(' (arguments+=PExpression (',' arguments+=PExpression)*)? ')' (
+		anonInstance?='{' (elements+=PDeclaration =>(';' elements+=PDeclaration)* ';'?)? '}'
+			// =>: local, distinguishes semicolons
+	)?
+;
+
+PBlockExpression returns PExpression:
+	{PBlockExpression} '{'
+		(expressions+=PExpressionOrVarDeclaration =>(';' expressions+=PExpressionOrVarDeclaration)* ';'?)?
+			// =>: local, distinguishes semicolons
+	'}'
+;
+
+PFeatureCall returns PExpression:
+	{PFeatureCall} (
+		feature=IdOrSuper (
+			=>'(' (featureCallArguments+=PExpression (',' featureCallArguments+=PExpression)*)? ')'
+		)?
+	) | (
+		metaFeature=PMetaVariable
+			=>'(' (featureCallArguments+=PExpression (',' featureCallArguments+=PExpression)*)? ')'
+	)
+;
+
+PReturnExpression returns PExpression:
+	{PReturnExpression} 'return' (->expression=PExpression)?
+;
+
+PTargetExpression returns PExpression:
+	{PTargetExpression} 'target'
+;
+
+PNothingExpression returns PExpression:
+	{PNothingExpression} 'nothing'
+;
+
+///////////////////
+// Preconditions //
+///////////////////
+
+// adds metavariable references
+@Override
+XPrimaryExpression returns xbase::XExpression
+	: XConstructorCall
+	| XBlockExpression
+	| XSwitchExpression
+	| XSynchronizedExpression
+	| XFeatureCall
+	| XLiteral
+	| XIfExpression
+	| XForLoopExpression
+	| XBasicForLoopExpression
+	| XWhileExpression
+	| XDoWhileExpression
+	| XThrowExpression
+	| XReturnExpression
+	| XTryCatchFinallyExpression
+	| XParenthesizedExpression
+	| MetaVariable
+;
+
+MetaVariable returns xbase::XExpression:
+	{MetaVariable} '#' name=ID multi?='..'?
+;
+
+@Override
+XSetLiteral returns xbase::XSetLiteral:
+	{xbase::XSetLiteral} '@' '{' (elements+=XExpression (',' elements+=XExpression )*)? '}'
+;
+
+@Override
+XListLiteral returns xbase::XListLiteral:
+	{xbase::XListLiteral} '@' '[' (elements+=XExpression (',' elements+=XExpression )*)? ']'
+;
+
+// removes '..'
+@Override
+OpOther
+	: '=>'
+	| '>' (=>('>' '>') | '>')
+	| '<' (=>('<' '<') | '<' | '=>')
+	| '<>'
+	| '?:'
+;
+
+// removes '#'
+@Override
+terminal HEX:
+	('0x'|'0X') ('0'..'9'|'a'..'f'|'A'..'F'|'_')+
+	('@' (('b'|'B')('i'|'I') | ('l'|'L')))?;
