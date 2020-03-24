@@ -8,5 +8,4 @@ class RefJavaImplicitlyImportedFeatures extends ImplicitlyImportedFeatures {
 	override protected getStaticImportClasses() {
 		(super.getStaticImportClasses() + #[Check]).toList
 	}
-
 }

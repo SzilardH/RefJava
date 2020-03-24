@@ -1,20 +1,56 @@
 package hu.elte.refjava.examples;
 
-local refactoring identity()
-	#s..
-	~~~~
-	#s..
+block refactoring identity()
+	{ target }
+	~~~~~~~~~~~~
+	target ;
+
 
 local refactoring insertEmptyBlockAfter()
-	#s..
+	#s ; #s2
 	~~~~~~~~~
-	#s.. ; {}
+	#s ; {}   
+when
+	isInsideBlock(#s)
+	
+
+local refactoring test()
+	#s1 ; #s ; #s2.. 
+	~~~~~~~~~    
+	#s1 
+
 
 local refactoring moveIntoNextBlock()
-	#s1 ; { #s2.. } ; #s3
+	#s1.. ; { #s2.. } ; #s3 ; { #s4.. } ; #s5  
 	~~~~~~~~~~~~~~~~~~~~~
-	{ #s1 ; #s2.. } ; #s3
-when
+	{ #s1.. ; #s2.. } ; #s3 ; { #s5 ; #s4.. } 
+/*when
 	!isVariableDeclaration(#s1) ||
 	!isReferencedIn(asVariableDeclaration(#s1),
+		blockRemainder(#s3))*/
+
+
+block refactoring blockIdentity()
+	#s1 ; target ; #s2
+	~~~~~~~~
+	#s1 ; target ; #s2
+
+	
+block refactoring blocktest()
+	target ; { #s2.. } ; #s3
+	~~~~~~~~~~~~~~~~~~~~~
+	{ target ; #s2.. } ; #s3
+/*when
+	!isVariableDeclaration(target) ||
+	!isReferencedIn(asVariableDeclaration(target),
 		blockRemainder(#s3))
+*/			
+lambda refactoring l()
+	#s2
+	~~~~~~
+	#s2
+	
+	
+
+
+

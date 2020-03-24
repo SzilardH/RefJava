@@ -46,7 +46,7 @@ class RefJavaWizardPage extends WizardPage {
 			.flatMap[compilationUnits.toList]
 			.map [
 				// do not optimize
-				val parser = ASTParser.newParser(AST.JLS10)
+				val parser = ASTParser.newParser(AST.JLS12)
 				parser.setResolveBindings(true)
 				parser.source = it
 				parser.createAST(null) as CompilationUnit

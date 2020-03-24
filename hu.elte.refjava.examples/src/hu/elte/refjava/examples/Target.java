@@ -9,10 +9,24 @@ public class Target {
 	 * Change the 4th 'a' reference to 'this.a'
 	 * and try again the last step.
 	 */
-	void f() {
-		int a = 5;
-		int b = a;
-		System.out.println(a + b);
-		System.out.println(a);
+	void f() 
+	{
+		int x;
+		int a;
+		{
+			System.out.println("asd");
+			int k;
+		}
+		int b;
+		
 	}
 }
+
+
+/*new F() {
+public void apply() {
+	System.out.println("ASD");
+}
+}.apply();*/
+
+//interface F { void apply(); }

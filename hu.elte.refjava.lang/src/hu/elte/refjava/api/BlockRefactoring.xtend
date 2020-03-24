@@ -10,11 +10,11 @@ import org.eclipse.jdt.core.ICompilationUnit
 import org.eclipse.jdt.core.dom.ASTNode
 import org.eclipse.jface.text.IDocument
 
-class LocalRefactoring implements Refactoring {
-
+class BlockRefactoring implements Refactoring {
+	
 	List<? extends ASTNode> target
 	IDocument document
-
+	
 	val PatternMatcher matcher
 	val ASTBuilder builder
 	protected val Map<String, List<? extends ASTNode>> bindings = newHashMap
@@ -28,14 +28,20 @@ class LocalRefactoring implements Refactoring {
 		matcher = new PatternMatcher(PatternParser.parse(matchingPatternString))
 		builder = new ASTBuilder(PatternParser.parse(replacementPatternString))
 	}
-
+	
 	override init(List<? extends ASTNode> target, IDocument document, ICompilationUnit iCompUnit) {
 		this.target = target
 		this.document = document
 	}
-
+	
+	def setTarget(List<?extends ASTNode> newTarget) {
+		this.target = newTarget
+	}
+	
 	override apply() {
-		return if (!safeMatch) {
+		return if(!safeTargetCheck) {
+			Status.TARGET_MATCH_FAILED
+		} else if (!safeMatch) {
 			Status.MATCH_FAILED
 		} else if (!safeCheck) {
 			Status.CHECK_FAILED
@@ -47,15 +53,30 @@ class LocalRefactoring implements Refactoring {
 			Status.SUCCESS
 		}
 	}
-
+	
 	def private safeMatch() {
 		setMetaVariables()
-		if (!matcher.match(target, nameBindings, typeBindings, parameterBindings, typeReferenceString)) {
+		if (!matcher.match(target, nameBindings, typeBindings, parameterBindings, typeReferenceString)  ) {
 			return false
 		}
-
+		
+		target = matcher.modifiedTarget.toList
+		
 		bindings.putAll(matcher.bindings)
+		return true 
+	}
+	
+	def protected void setMetaVariables() {
+		//empty
+	}
+	
+	def protected safeTargetCheck() {
 		return true
+	}
+	
+	def protected targetCheck(String targetPatternString) {
+		
+		return matcher.match(PatternParser.parse(targetPatternString), target)
 	}
 
 	def private safeCheck() {
@@ -64,10 +85,6 @@ class LocalRefactoring implements Refactoring {
 		} catch (Exception e) {
 			false
 		}
-	}
-	
-	def protected void setMetaVariables() {
-		//empty
 	}
 
 	def protected check() {
@@ -78,6 +95,7 @@ class LocalRefactoring implements Refactoring {
 		try {
 			replacement = builder.build(target.head.AST, bindings, nameBindings, typeBindings, parameterBindings, typeReferenceString)
 		} catch (Exception e) {
+			System.out.println(e)
 			return false
 		}
 
@@ -88,16 +106,18 @@ class LocalRefactoring implements Refactoring {
 		try {
 			val rewrite = builder.rewrite
 			target.tail.forEach[rewrite.remove(it, null)]
-
-			val group = rewrite.createGroupNode(replacement)
-			rewrite.replace(target.head, group, null)
-
+			
+			val group = rewrite.createGroupNode( replacement )
+			rewrite.replace( target.head, group, null)
 			val edits = rewrite.rewriteAST(document, null)
 			edits.apply(document)
+			
 		} catch (Exception e) {
 			return false
 		}
 
 		return true
 	}
+	
+	
 }
