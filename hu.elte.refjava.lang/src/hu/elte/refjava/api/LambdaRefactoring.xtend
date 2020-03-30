@@ -25,11 +25,15 @@ class LambdaRefactoring implements Refactoring {
 	
 	val PatternMatcher matcher
 	val ASTBuilder builder
+	protected String definitionString
 	protected val Map<String, List<? extends ASTNode>> bindings = newHashMap
 	protected val Map<String, String> nameBindings = newHashMap
 	protected val Map<String, Type> typeBindings = newHashMap
 	protected val Map<String, List<Pair<Type, String>>> parameterBindings = newHashMap
-	protected String typeReferenceString
+	protected String matchingTypeReferenceString
+	protected String replacementTypeReferenceString
+	protected String targetTypeReferenceString
+	protected String definitionTypeReferenceString
 	List<ASTNode> replacement
 
 	protected new(String matchingPatternString, String replacementPatternString) {
@@ -66,7 +70,7 @@ class LambdaRefactoring implements Refactoring {
 	def private safeMatch() {
 		try {
 			setMetaVariables()
-			if (!matcher.match(target, nameBindings, typeBindings, parameterBindings, typeReferenceString)) {
+			if (!matcher.match(target, nameBindings, typeBindings, parameterBindings, matchingTypeReferenceString)) {
 				return false
 			}
 			target = matcher.modifiedTarget.toList
@@ -88,7 +92,7 @@ class LambdaRefactoring implements Refactoring {
 	}
 	
 	def protected targetCheck(String targetPatternString) {
-		return matcher.match(PatternParser.parse(targetPatternString), target)
+		return matcher.match(PatternParser.parse(targetPatternString), target, targetTypeReferenceString)
 	}
 
 	def private safeCheck() {
@@ -101,12 +105,13 @@ class LambdaRefactoring implements Refactoring {
 	}
 
 	def protected check() {
-		Check.isInsideBlock(target)
+		//Check.isInsideBlock(target)
+		return true
 	}
 
 	def private safeBuild() {
 		try {
-			replacement = builder.build(target.head.AST, bindings, nameBindings, typeBindings, parameterBindings, typeReferenceString)
+			replacement = builder.build(target.head.AST, bindings, nameBindings, typeBindings, parameterBindings, replacementTypeReferenceString)
 		} catch (Exception e) {
 			println(e)
 			return false

@@ -12,7 +12,7 @@ import java.lang.reflect.Type
 
 class Check {
 
-	
+	//for testing
 	def static getTypeOf(Type type) {
 		return type
 	}
@@ -88,7 +88,6 @@ class Check {
 						return true
 					}
 				}
-
 				accept(visitor)
 				return visitor.found
 			]
@@ -99,6 +98,10 @@ class Check {
 		varDeclList.forall[!isReferencedIn(nodes)]
 	}
 	
+	//class refact
+	def static references(ASTNode node) {
+		
+	}
 	
 	
 	

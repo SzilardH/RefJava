@@ -85,7 +85,7 @@ PParameterMetaVariable returns PExpression:
 ;
 
 Pattern:
-	patterns+=PExpressionOrVarDeclaration =>(';' patterns+=PExpressionOrVarDeclaration)* ';'?
+	(patterns+=PExpressionOrVarDeclaration =>(';' patterns+=PExpressionOrVarDeclaration)* ';'?) | empty?="-"
 		// =>: local, distinguishes semicolons
 ;
 
@@ -98,7 +98,7 @@ PDeclaration returns PExpression:
 	PVariableDeclaration (
 		{PMethodDeclaration.prefix=current} '(' (
 			arguments+=FullJvmFormalParameter (',' arguments+=FullJvmFormalParameter)* | metaArguments=PParameterMetaVariable
-		)? ')' (body=PBlockExpression | metaBody=PMetaVariable)
+		)? ')' (body=PBlockExpression)
 	)?
 ;
 
@@ -111,7 +111,7 @@ PVariableDeclaration returns PVariableDeclaration:
 ;
 
 enum Visibility:
-	PACKAGE='package' | PUBLIC='public' | PRIVATE='private' | PROTECTED='protected'
+	NULL='null' | PACKAGE='package' | PUBLIC='public' | PRIVATE='private' | PROTECTED='protected'
 ;
 
 PExpression returns PExpression:

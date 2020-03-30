@@ -1,7 +1,12 @@
 package hu.elte.refjava.api.patterns
 
-import org.eclipse.jdt.core.dom.PrimitiveType
+import hu.elte.refjava.lang.refJava.Pattern
 import org.eclipse.jdt.core.dom.AST
+import org.eclipse.jdt.core.dom.PrimitiveType
+import org.eclipse.xtext.EcoreUtil2
+import org.eclipse.xtext.common.types.JvmTypeReference
+import org.eclipse.jdt.core.dom.ASTNode
+import org.eclipse.jdt.core.dom.TypeDeclaration
 
 class Utils {
 	
@@ -40,4 +45,20 @@ class Utils {
 		}
 	}
 	
+	def static getTypeReferenceString(Pattern pattern) {
+		var String typeypeReferenceString = ""
+		val types = EcoreUtil2.getAllContentsOfType(pattern, JvmTypeReference)
+		for(type : types) {
+			typeypeReferenceString = typeypeReferenceString + type.identifier + "|"
+		}
+		return typeypeReferenceString
+	}
+	
+	def static getTypeDeclaration(ASTNode node) {
+		var tmp = node
+			while (!(tmp instanceof TypeDeclaration)) {
+				tmp = tmp.parent
+		}
+		tmp as TypeDeclaration
+	}
 }

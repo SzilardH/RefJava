@@ -5,21 +5,20 @@ import hu.elte.refjava.api.BlockRefactoring
 import hu.elte.refjava.api.ClassRefactoring
 import hu.elte.refjava.api.LambdaRefactoring
 import hu.elte.refjava.api.LocalRefactoring
-import hu.elte.refjava.lang.refJava.PMethodDeclaration
+import hu.elte.refjava.api.patterns.Utils
 import hu.elte.refjava.lang.refJava.PNameMetaVariable
 import hu.elte.refjava.lang.refJava.PParameterMetaVariable
 import hu.elte.refjava.lang.refJava.PTypeMetaVariable
 import hu.elte.refjava.lang.refJava.SchemeInstanceRule
 import hu.elte.refjava.lang.refJava.SchemeType
 import java.lang.reflect.Type
-import org.eclipse.xtext.EcoreUtil2
+import java.util.List
 import org.eclipse.xtext.common.types.JvmVisibility
 import org.eclipse.xtext.naming.IQualifiedNameProvider
 import org.eclipse.xtext.serializer.ISerializer
 import org.eclipse.xtext.xbase.jvmmodel.AbstractModelInferrer
 import org.eclipse.xtext.xbase.jvmmodel.IJvmDeclaredTypeAcceptor
 import org.eclipse.xtext.xbase.jvmmodel.JvmTypesBuilder
-import java.util.List
 
 class RefJavaJvmModelInferrer extends AbstractModelInferrer {
 
@@ -32,20 +31,31 @@ class RefJavaJvmModelInferrer extends AbstractModelInferrer {
 		acceptor.accept(rule.toClass(rule.fullyQualifiedName)) [
 			superTypes += rule.type.toSuperType.typeRef
 			
-			
 			//type parsing doesn't work..
-			var String typeReferenceString = ""
-			val methodDeclarations = EcoreUtil2.getAllContentsOfType(rule.replacementPattern, PMethodDeclaration)
-			for(method : methodDeclarations) {
-				if(method.prefix.type !== null) {
-					typeReferenceString = typeReferenceString + method.prefix.type.identifier + "|"
-				}
-				for (args : method.arguments) {
-					if(args.parameterType.type !== null) {
-						typeReferenceString = typeReferenceString + args.parameterType.identifier + "|"
-					}
-				}
+			val matchingTypeReferenceString = if (rule.matchingPattern !== null) { 
+				Utils.getTypeReferenceString(rule.matchingPattern)
+			} else {
+				""
 			}
+			
+			val replacementTypeReferenceString = if (rule.replacementPattern !== null) {
+				Utils.getTypeReferenceString(rule.replacementPattern)
+			} else {
+				""
+			}
+			
+			val targetTypeReferenceString = if(rule.targetPattern !== null) {
+				Utils.getTypeReferenceString(rule.targetPattern)
+			} else {
+				""
+			}
+			
+			val definitionTypeReferenceString = if(rule.definitionPattern !== null) {
+				Utils.getTypeReferenceString(rule.definitionPattern)
+			} else {
+				""
+			}
+			
 			
 			members += rule.toConstructor [
 				body = '''super("«rule.matchingPattern.serialize.trim»", "«rule.replacementPattern.serialize.trim»");'''
@@ -92,15 +102,22 @@ class RefJavaJvmModelInferrer extends AbstractModelInferrer {
 				}
 			}
 			
-			val finalTypesReferenceString = typeReferenceString
+			if(rule.definitionPattern !== null && (rule.type == SchemeType.LAMBDA || rule.type == SchemeType.CLASS) ) {
+				callings = callings + '''super.definitionString = "«rule.definitionPattern.serialize.trim»";'''+ endl
+			}
+			
 			val finalCallings = callings + endl
-			if (finalTypesReferenceString.length > 0) {
+			if (finalCallings.length > 2 || matchingTypeReferenceString.length > 0 || replacementTypeReferenceString.length > 0 || targetTypeReferenceString.length > 0 || definitionTypeReferenceString.length > 0) {
 				members += rule.toMethod("setMetaVariables", typeof(void).typeRef) [
-					annotations += annotationRef(Override)
+					//annotations += annotationRef(Override)
 					visibility = JvmVisibility.PROTECTED
-					body = '''«finalCallings»super.typeReferenceString = "«finalTypesReferenceString»";'''
+					body = '''«finalCallings»super.matchingTypeReferenceString = "«matchingTypeReferenceString»";
+super.replacementTypeReferenceString = "«replacementTypeReferenceString»";
+super.targetTypeReferenceString = "«targetTypeReferenceString»";
+super.definitionTypeReferenceString = "«definitionTypeReferenceString»";'''
 				]
 			}
+			
 			
 			if (rule.precondition !== null) {
 				members += rule.toMethod("instanceCheck", Boolean.TYPE.typeRef) [

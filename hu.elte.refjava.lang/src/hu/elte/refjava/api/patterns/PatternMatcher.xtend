@@ -21,6 +21,9 @@ import org.eclipse.jdt.core.dom.MethodDeclaration
 import org.eclipse.jdt.core.dom.MethodInvocation
 import org.eclipse.jdt.core.dom.Modifier
 import org.eclipse.xtext.EcoreUtil2
+import hu.elte.refjava.lang.refJava.PVariableDeclaration
+import org.eclipse.jdt.core.dom.FieldDeclaration
+import org.eclipse.jdt.core.dom.VariableDeclarationFragment
 
 class PatternMatcher {
 	
@@ -44,8 +47,14 @@ class PatternMatcher {
 		modifiedTarget
 	}
 	
-	def match(Pattern targetPattern, List<? extends ASTNode> target) {
+	def match(Pattern targetPattern, List<? extends ASTNode> target, String typeRefString) {
 		bindings.clear
+		if (typeRefString !== null) {
+			val tmp = typeRefString.split("\\|")
+			this.typeReferenceQueue = newLinkedList
+			this.typeReferenceQueue.addAll(tmp)
+		}
+		
 		return doMatchChildren(targetPattern.patterns, target)
 	}
 
@@ -54,10 +63,12 @@ class PatternMatcher {
 		this.nameBindings = nameBindings
 		this.typeBindings = typeBindings
 		this.parameterBindings = parameterBindings
-		val tmp = typeRefString.split("\\|")
-		this.typeReferenceQueue = newLinkedList
-		this.typeReferenceQueue.addAll(tmp)
 		
+		if (typeRefString !== null) {
+			val tmp = typeRefString.split("\\|")
+			this.typeReferenceQueue = newLinkedList
+			this.typeReferenceQueue.addAll(tmp)
+		}
 		
 		bindings.clear
 		modifiedTarget = newArrayList
@@ -107,16 +118,6 @@ class PatternMatcher {
 			if (constCall.elements.size != classInstance.anonymousClassDeclaration.bodyDeclarations.size) {
 				return false
 			} else {
-				/*
-				val pIt = constCall.elements.iterator
-				val nIt = classInstance.anonymousClassDeclaration.bodyDeclarations.iterator
-				while(pIt.hasNext) {
-					if (!doMatch(pIt.next, nIt.next)) {
-						return false
-					}
-				}
-				anonClassCheck = true
-				*/
 				anonClassCheck = doMatchChildren(constCall.elements, classInstance.anonymousClassDeclaration.bodyDeclarations)
 			}	
 		} else {
@@ -141,13 +142,15 @@ class PatternMatcher {
 		
 		//matching method visibility
 		var boolean visibilityCheck 
-		if(pMethodDecl.prefix.visibility !== null) {
+		if(pMethodDecl.prefix.visibility.toString != "null") {
 			switch pMethodDecl.prefix.visibility {
 				case PUBLIC: visibilityCheck = Modifier.isPublic(methodDecl.getModifiers())
 				case PRIVATE: visibilityCheck = Modifier.isPrivate(methodDecl.getModifiers())
 				case PROTECTED: visibilityCheck = Modifier.isProtected(methodDecl.getModifiers())
 				default: {}
 			}
+		} else {
+			visibilityCheck = true
 		}
 		
 		//matching method return value
@@ -156,7 +159,7 @@ class PatternMatcher {
 			//TODO
 			returnCheck = true
 		} else {
-			returnCheck = methodDecl.returnType2.toString == typeReferenceQueue.remove 
+			returnCheck = methodDecl.returnType2.toString == typeReferenceQueue.remove
 		}
 		
 		//matching method body
@@ -184,6 +187,8 @@ class PatternMatcher {
 			if(featureCall.memberCallArguments !== null) {
 				//TODO
 				parameterCheck = true
+			} else {
+				parameterCheck = true
 			}
 						
 			//matching method invocation expression
@@ -194,6 +199,45 @@ class PatternMatcher {
 			return false
 		}
 	}
+	
+	//variable declaration matching
+	def private dispatch boolean doMatch(PVariableDeclaration varDecl, FieldDeclaration fieldDecl) {
+		
+		//matching variable declaration name
+		var boolean nameCheck
+		if (varDecl.metaName !== null) {
+			//TODO
+			nameCheck = true
+		} else {
+			nameCheck = varDecl.name == (fieldDecl.fragments.head as VariableDeclarationFragment).name.identifier
+		}
+		
+		//matching variable declaration visibility
+		var boolean visibilityCheck
+		if(varDecl.visibility.toString != "null") {
+			switch varDecl.visibility {
+				case PUBLIC: visibilityCheck = Modifier.isPublic(fieldDecl.getModifiers())
+				case PRIVATE: visibilityCheck = Modifier.isPrivate(fieldDecl.getModifiers())
+				case PROTECTED: visibilityCheck = Modifier.isProtected(fieldDecl.getModifiers())
+				default: {}
+			}
+		} else {
+			visibilityCheck = true
+		}
+		
+		//matching variable declaration type
+		var boolean typeCheck
+		if(varDecl.type !== null) {
+			typeCheck = fieldDecl.type.toString == typeReferenceQueue.remove
+		} else {
+			//TODO
+			typeCheck = true
+		}
+		
+		return nameCheck && visibilityCheck && typeCheck
+	}
+	
+	
 
 	def private dispatch doMatch(PExpression anyOtherPattern, ASTNode anyOtherNode) {
 		false

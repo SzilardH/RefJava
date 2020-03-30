@@ -21,10 +21,12 @@ import org.eclipse.jdt.core.dom.Modifier.ModifierKeyword
 import org.eclipse.jdt.core.dom.TypeDeclaration
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite
 import hu.elte.refjava.lang.refJava.PParameterMetaVariable
+import hu.elte.refjava.lang.refJava.PFeatureCall
+import hu.elte.refjava.lang.refJava.PVariableDeclaration
 
 class ASTBuilder {
 
-	val Pattern pattern
+	Pattern pattern
 	AST ast
 	ASTRewrite rewrite
 	Map<String, List<? extends ASTNode>> bindings
@@ -45,6 +47,11 @@ class ASTBuilder {
 	def getNewInterface() {
 		newInterface
 	}
+	
+	def build(Pattern pattern, AST ast, Map<String, List<? extends ASTNode>> bindings, Map<String, String> nameBindings, Map<String, Type> typeBindings, Map<String, List<Pair<Type, String>>> parameterBindings, String typeRefString) {
+		this.pattern = pattern
+		build(ast, bindings, nameBindings, typeBindings, parameterBindings, typeRefString)
+	}
 
 	def build(AST ast, Map<String, List<? extends ASTNode>> bindings, Map<String, String> nameBindings, Map<String, Type> typeBindings, Map<String, List<Pair<Type, String>>> parameterBindings, String typeRefString) {
 		this.ast = ast
@@ -56,11 +63,18 @@ class ASTBuilder {
 		this.newInterface = ast.newTypeDeclaration
 		this.newInterface.interface = true
 		
-		val tmp = typeRefString.split("\\|")
-		this.typeReferenceQueue = newLinkedList
-		this.typeReferenceQueue.addAll(tmp)
+		if(typeRefString !== null) {
+			val tmp = typeRefString.split("\\|")
+			this.typeReferenceQueue = newLinkedList
+			this.typeReferenceQueue.addAll(tmp)
+		}
 		
-		return pattern.patterns.doBuildPatterns
+		if(pattern.empty) {
+			return null
+		} else {
+			return pattern.patterns.doBuildPatterns
+		}
+		
 	}
 
 	//meta variable builder
@@ -113,6 +127,7 @@ class ASTBuilder {
 		val method = ast.newMethodDeclaration
 		val newInterfaceMethod = ast.newMethodDeclaration
 		
+		
 		//adding method name
 		if (methodDecl.prefix.metaName !== null) {
 			val name = (methodDecl.prefix.metaName as PNameMetaVariable).name
@@ -130,7 +145,7 @@ class ASTBuilder {
 				default: {}
 			}
 		}
-		
+
 		//adding method return type
 		if(methodDecl.prefix.type !== null) {
 			method.returnType2 = Utils.getTypeFromId(typeReferenceQueue.remove, ast)
@@ -138,7 +153,7 @@ class ASTBuilder {
 			val name = (methodDecl.prefix.metaType as PTypeMetaVariable).name
 			method.returnType2 = Utils.getTypeFromId(typeBindings.get(name).typeName, ast)
 		}
-		
+
 		//adding method parameters
 		if (methodDecl.arguments.size > 0) {
 			for(argument : methodDecl.arguments) {
@@ -170,17 +185,24 @@ class ASTBuilder {
 		}
 		
 		//adding method body
-		if(methodDecl.body !== null) {
-			val block = ast.newBlock
-			val buildMethodBody = (methodDecl.body as PBlockExpression).expressions.doBuildPatterns
-			block.statements.addAll(buildMethodBody)
-			method.body = block
-		} else {
-			val block = ast.newBlock
-			val buildMethodMetaBody = (methodDecl.metaBody as PMetaVariable).doBuild
-			block.statements.add(buildMethodMetaBody)
-			method.body = block
+		val block = ast.newBlock
+		val methodBody = (methodDecl.body as PBlockExpression).expressions
+		var List<ASTNode> methodBodyList = newArrayList
+		for(element : methodBody) {
+			if(element instanceof PMetaVariable) {
+				val binding = bindings.get( (element as PMetaVariable).name )
+				val copies = binding.map[ASTNode.copySubtree(ast, it)]
+				methodBodyList.addAll(copies)
+			} else if (element instanceof PTargetExpression) {
+				val binding = bindings.get( "target" )
+				val copies = binding.map[ASTNode.copySubtree(ast, it)]
+				methodBodyList.addAll(copies)
+			} else {
+				methodBodyList.add(element.doBuild)
+			}
 		}
+		block.statements.addAll(methodBodyList)
+		method.body = block
 		
 		newInterfaceMethod.name.identifier = method.name.identifier
 		newInterfaceMethod.returnType2 = Utils.getTypeFromId(method.returnType2.toString, ast)
@@ -188,7 +210,42 @@ class ASTBuilder {
 		return method
 	}
 	
-	//method invocation builder
+	//variable declaration builder
+	def private dispatch doBuild(PVariableDeclaration varDecl) {
+		val fragment = ast.newVariableDeclarationFragment
+		
+		//adding variable name
+		if(varDecl.metaName !== null) {
+			fragment.name.identifier = nameBindings.get( (varDecl.metaName as PNameMetaVariable).name )
+		} else {
+			fragment.name.identifier = varDecl.name
+		}
+		
+		val newVar = ast.newFieldDeclaration(fragment)
+		
+		//adding variable visibility
+		if(varDecl.visibility !== null) {
+			switch varDecl.visibility {
+				case PUBLIC: newVar.modifiers().add(ast.newModifier(ModifierKeyword.PUBLIC_KEYWORD))
+				case PRIVATE: newVar.modifiers().add(ast.newModifier(ModifierKeyword.PRIVATE_KEYWORD))
+				case PROTECTED: newVar.modifiers().add(ast.newModifier(ModifierKeyword.PROTECTED_KEYWORD))
+				default: {}
+			}
+		}
+		
+		//adding variable type
+		if(varDecl.type !== null) {
+			newVar.type = Utils.getTypeFromId(typeReferenceQueue.remove, ast)
+		} else {
+			val name = (varDecl.metaType as PTypeMetaVariable).name
+			newVar.type = Utils.getTypeFromId(typeBindings.get(name).typeName, ast)
+		}
+
+		return newVar
+	}
+	
+	
+	//method invocation (with expression) builder
 	def private dispatch ASTNode doBuild(PMemberFeatureCall featureCall) {
 		val methodInv = ast.newMethodInvocation
 		
@@ -215,6 +272,20 @@ class ASTBuilder {
 		val statement = ast.newExpressionStatement(methodInv)
 		return statement
 	}
+	
+	//method invocation (without expression) builder
+	def private dispatch doBuild(PFeatureCall featureCall) {
+		val methodInv = ast.newMethodInvocation
+		
+		//adding method invocation name
+		methodInv.name.identifier = featureCall.feature
+		
+		//TODO
+		
+		val statement = ast.newExpressionStatement(methodInv)
+		return statement
+	}
+	
 	
 	//block builder
 	def private dispatch doBuild(PBlockExpression blockPattern) {

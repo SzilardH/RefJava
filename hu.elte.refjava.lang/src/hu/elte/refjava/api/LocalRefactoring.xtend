@@ -21,7 +21,10 @@ class LocalRefactoring implements Refactoring {
 	protected val Map<String, String> nameBindings = newHashMap
 	protected val Map<String, Type> typeBindings = newHashMap
 	protected val Map<String, List<Pair<Type, String>>> parameterBindings = newHashMap
-	protected String typeReferenceString
+	protected String matchingTypeReferenceString
+	protected String replacementTypeReferenceString
+	protected String targetTypeReferenceString
+	protected String definitionTypeReferenceString
 	List<ASTNode> replacement
 
 	protected new(String matchingPatternString, String replacementPatternString) {
@@ -50,7 +53,7 @@ class LocalRefactoring implements Refactoring {
 
 	def private safeMatch() {
 		setMetaVariables()
-		if (!matcher.match(target, nameBindings, typeBindings, parameterBindings, typeReferenceString)) {
+		if (!matcher.match(target, nameBindings, typeBindings, parameterBindings, matchingTypeReferenceString)) {
 			return false
 		}
 
@@ -76,7 +79,7 @@ class LocalRefactoring implements Refactoring {
 
 	def private safeBuild() {
 		try {
-			replacement = builder.build(target.head.AST, bindings, nameBindings, typeBindings, parameterBindings, typeReferenceString)
+			replacement = builder.build(target.head.AST, bindings, nameBindings, typeBindings, parameterBindings, replacementTypeReferenceString)
 		} catch (Exception e) {
 			return false
 		}
