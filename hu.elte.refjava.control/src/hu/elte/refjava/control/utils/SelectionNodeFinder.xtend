@@ -36,5 +36,4 @@ class SelectionNodeFinder {
 	def private static dispatch getChildren(ASTNode coveringNode) {
 		#[coveringNode]
 	}
-
 }
