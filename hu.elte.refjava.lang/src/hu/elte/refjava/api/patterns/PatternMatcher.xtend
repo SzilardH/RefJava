@@ -3,10 +3,12 @@ package hu.elte.refjava.api.patterns
 import hu.elte.refjava.lang.refJava.PBlockExpression
 import hu.elte.refjava.lang.refJava.PConstructorCall
 import hu.elte.refjava.lang.refJava.PExpression
+import hu.elte.refjava.lang.refJava.PLambdaExpression
 import hu.elte.refjava.lang.refJava.PMemberFeatureCall
 import hu.elte.refjava.lang.refJava.PMetaVariable
 import hu.elte.refjava.lang.refJava.PMethodDeclaration
 import hu.elte.refjava.lang.refJava.PTargetExpression
+import hu.elte.refjava.lang.refJava.PVariableDeclaration
 import hu.elte.refjava.lang.refJava.Pattern
 import java.lang.reflect.Type
 import java.util.ArrayList
@@ -17,13 +19,13 @@ import org.eclipse.jdt.core.dom.ASTNode
 import org.eclipse.jdt.core.dom.Block
 import org.eclipse.jdt.core.dom.ClassInstanceCreation
 import org.eclipse.jdt.core.dom.ExpressionStatement
+import org.eclipse.jdt.core.dom.FieldDeclaration
 import org.eclipse.jdt.core.dom.MethodDeclaration
 import org.eclipse.jdt.core.dom.MethodInvocation
 import org.eclipse.jdt.core.dom.Modifier
-import org.eclipse.xtext.EcoreUtil2
-import hu.elte.refjava.lang.refJava.PVariableDeclaration
-import org.eclipse.jdt.core.dom.FieldDeclaration
+import org.eclipse.jdt.core.dom.SingleVariableDeclaration
 import org.eclipse.jdt.core.dom.VariableDeclarationFragment
+import org.eclipse.xtext.EcoreUtil2
 
 class PatternMatcher {
 	
@@ -54,7 +56,6 @@ class PatternMatcher {
 			this.typeReferenceQueue = newLinkedList
 			this.typeReferenceQueue.addAll(tmp)
 		}
-		
 		return doMatchChildren(targetPattern.patterns, target)
 	}
 
@@ -115,11 +116,11 @@ class PatternMatcher {
 		//matching constructor call's methods
 		var boolean anonClassCheck
 		if (classInstance.anonymousClassDeclaration !== null && constCall.elements !== null) {
-			if (constCall.elements.size != classInstance.anonymousClassDeclaration.bodyDeclarations.size) {
-				return false
-			} else {
+			//if (constCall.elements.size != classInstance.anonymousClassDeclaration.bodyDeclarations.size) {
+				//return false
+			//} else {
 				anonClassCheck = doMatchChildren(constCall.elements, classInstance.anonymousClassDeclaration.bodyDeclarations)
-			}	
+			//}	
 		} else {
 			//TODO
 			anonClassCheck = true
@@ -162,10 +163,36 @@ class PatternMatcher {
 			returnCheck = methodDecl.returnType2.toString == typeReferenceQueue.remove
 		}
 		
+		//matching method parameters
+		var boolean parameterCheck = true
+		if (pMethodDecl.arguments.size > 0) {
+			if (pMethodDecl.arguments.size != methodDecl.parameters.size) {
+				parameterCheck = false
+			} else {
+				val argIt = pMethodDecl.arguments.iterator
+				val paramIt = (methodDecl.parameters as List<SingleVariableDeclaration>).iterator
+				
+				while(argIt.hasNext && parameterCheck) {
+					val arg = argIt.next
+					val param = paramIt.next
+					parameterCheck = param.name.identifier == arg.name && param.type.toString == typeReferenceQueue.remove 
+				}
+				
+			}
+		} else if (pMethodDecl.metaArguments !== null) {
+			//TODO
+			parameterCheck = true
+		}
+		
 		//matching method body
 		val boolean bodyCheck = doMatch(pMethodDecl.body, methodDecl.body)
 		
-		return nameCheck && visibilityCheck && returnCheck && bodyCheck
+		return nameCheck && visibilityCheck && parameterCheck && returnCheck && bodyCheck
+	}
+	
+	//lambda expression matching
+	def private dispatch boolean doMatch(PLambdaExpression lambdaExpr, ExpressionStatement expStatement) {
+		doMatch(lambdaExpr.expression, expStatement)
 	}
 	
 	//method invocation matching
@@ -188,12 +215,13 @@ class PatternMatcher {
 				//TODO
 				parameterCheck = true
 			} else {
+				//TODO
 				parameterCheck = true
 			}
-						
+			
 			//matching method invocation expression
 			val boolean expressionCheck = doMatch(featureCall.memberCallTarget, methodInv.expression)
-
+			
 			return nameCheck && parameterCheck && expressionCheck
 		} else {
 			return false
@@ -237,8 +265,6 @@ class PatternMatcher {
 		return nameCheck && visibilityCheck && typeCheck
 	}
 	
-	
-
 	def private dispatch doMatch(PExpression anyOtherPattern, ASTNode anyOtherNode) {
 		false
 	}
@@ -247,6 +273,11 @@ class PatternMatcher {
 	// children matching //
 	///////////////////////
 	def private doMatchChildren(List<PExpression> patterns, List<? extends ASTNode> nodes) {
+		if (patterns.size == 1 && patterns.head instanceof PMetaVariable && (patterns.head as PMetaVariable).multi) {
+			bindings.put((patterns.head as PMetaVariable).name , nodes)
+			return true
+		}
+		
 		if (!patterns.exists[it instanceof PMetaVariable && (it as PMetaVariable).multi] && nodes.size != patterns.size) {
 			return false
 		}
@@ -267,23 +298,28 @@ class PatternMatcher {
 					matchingNodes.add(nIt.next)
 					j++
 				}
-	
+				
 				if(!doMatch(patterns.get(i), matchingNodes)) {
 					return false
 				}
 			}
 		}
+		bindings.put("target", nodes)
 		true
 	}
 	
-	
 	def private doMatchChildrenWithTarget(List<PExpression> patterns, List<? extends ASTNode> selectedNodes) {
+		if (patterns.size == 1 && patterns.head instanceof PTargetExpression) {
+			bindings.put("target", selectedNodes)
+			return true
+		}
+		
 		var List<PExpression> preTargetExpression = patterns.clone.takeWhile[ !(it instanceof PTargetExpression) ].toList.reverse
 		var List<PExpression> postTargetExpression = patterns.clone.reverse.takeWhile[ !(it instanceof PTargetExpression) ].toList.reverse
 		
 		val List<?super ASTNode> targetEnvironment = newArrayList
 		targetEnvironment.addAll( (selectedNodes.head.parent as Block).statements )
-			
+		
 		var List<ASTNode> preSelectedNodes = (targetEnvironment as List<?extends ASTNode>).clone.takeWhile[ it != selectedNodes.head ].toList.reverse
 		var List<ASTNode> postSelectedNodes = (targetEnvironment as List<?extends ASTNode>).clone.reverse.takeWhile[ it != selectedNodes.last ].toList.reverse
 		

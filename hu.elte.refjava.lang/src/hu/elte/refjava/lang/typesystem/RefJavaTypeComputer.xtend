@@ -57,7 +57,12 @@ class RefJavaTypeComputer extends XbaseTypeComputer {
 
 	def dispatch computeTypes(TargetExpression targetExpr, ITypeComputationState state) {
 		val astNodeType = getTypeForName(ASTNode, state)
-		state.acceptActualType(astNodeType)
+		
+		val listType = getTypeForName(List, state) as ParameterizedTypeReference
+		listType.addTypeArgument(astNodeType)
+		val type = listType
+
+		state.acceptActualType(type)
 	}
 	
 	

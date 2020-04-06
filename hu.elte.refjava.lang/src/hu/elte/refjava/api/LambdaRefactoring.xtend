@@ -3,6 +3,7 @@ package hu.elte.refjava.api
 import hu.elte.refjava.api.patterns.ASTBuilder
 import hu.elte.refjava.api.patterns.PatternMatcher
 import hu.elte.refjava.api.patterns.PatternParser
+import hu.elte.refjava.lang.refJava.PLambdaExpression
 import java.lang.reflect.Type
 import java.util.List
 import java.util.Map
@@ -11,20 +12,20 @@ import org.eclipse.jdt.core.dom.AST
 import org.eclipse.jdt.core.dom.ASTNode
 import org.eclipse.jdt.core.dom.ASTParser
 import org.eclipse.jdt.core.dom.CompilationUnit
-import org.eclipse.jdt.core.dom.MethodDeclaration
-import org.eclipse.jdt.core.dom.SingleVariableDeclaration
-import org.eclipse.jdt.core.dom.TypeDeclaration
 import org.eclipse.jface.text.IDocument
 import hu.elte.refjava.api.patterns.Utils
+import org.eclipse.jdt.core.dom.TypeDeclaration
 
 class LambdaRefactoring implements Refactoring {
 	
 	List<? extends ASTNode> target
 	IDocument document
-	ICompilationUnit iCompUnit
 	
 	val PatternMatcher matcher
 	val ASTBuilder builder
+	val String matchingString
+	val String replacementString
+	val String refactoringType
 	protected String definitionString
 	protected val Map<String, List<? extends ASTNode>> bindings = newHashMap
 	protected val Map<String, String> nameBindings = newHashMap
@@ -39,12 +40,19 @@ class LambdaRefactoring implements Refactoring {
 	protected new(String matchingPatternString, String replacementPatternString) {
 		matcher = new PatternMatcher(PatternParser.parse(matchingPatternString))
 		builder = new ASTBuilder(PatternParser.parse(replacementPatternString))
+		val matchingPatternsFirstElement = PatternParser.parse(matchingPatternString).patterns.get(0)
+		this.matchingString = matchingPatternString
+		this.replacementString = replacementPatternString
+		this.refactoringType = if (matchingPatternsFirstElement instanceof PLambdaExpression) {
+			"modification"
+		} else {
+			"new"
+		}
 	}
 	
-	override init(List<? extends ASTNode> target, IDocument document, ICompilationUnit iCompUnit) {
+	override init(List<? extends ASTNode> target, IDocument document, List<TypeDeclaration> allTypeDeclInWorkspace) {
 		this.target = target
 		this.document = document
-		this.iCompUnit = iCompUnit
 	}
 	
 	def setTarget(List<?extends ASTNode> newTarget) {
@@ -52,6 +60,7 @@ class LambdaRefactoring implements Refactoring {
 	}
 	
 	override apply() {
+		setMetaVariables()
 		return if(!safeTargetCheck) {
 			Status.TARGET_MATCH_FAILED
 		} else if (!safeMatch) {
@@ -69,12 +78,14 @@ class LambdaRefactoring implements Refactoring {
 	
 	def private safeMatch() {
 		try {
-			setMetaVariables()
 			if (!matcher.match(target, nameBindings, typeBindings, parameterBindings, matchingTypeReferenceString)) {
 				return false
 			}
 			target = matcher.modifiedTarget.toList
 			bindings.putAll(matcher.bindings)
+			
+			
+			
 			return true 
 		} catch (Exception e) {
 			println(e)
@@ -92,7 +103,16 @@ class LambdaRefactoring implements Refactoring {
 	}
 	
 	def protected targetCheck(String targetPatternString) {
-		return matcher.match(PatternParser.parse(targetPatternString), target, targetTypeReferenceString)
+		try {
+			if(!matcher.match(PatternParser.parse(targetPatternString), target, targetTypeReferenceString)) {
+				return false
+			}
+			bindings.putAll(matcher.bindings)
+			return true
+		} catch (Exception e) {
+			println(e)
+			return false
+		}
 	}
 
 	def private safeCheck() {
@@ -105,7 +125,17 @@ class LambdaRefactoring implements Refactoring {
 	}
 
 	def protected check() {
-		//Check.isInsideBlock(target)
+		//TODO
+		if(refactoringType == "new") {
+			println("new lambda expression")
+			
+			
+			
+		} else {
+			println("lambda expression modification")
+			
+			
+		}
 		return true
 	}
 
@@ -129,15 +159,33 @@ class LambdaRefactoring implements Refactoring {
 			var edits = rewrite.rewriteAST(document, null)
 			edits.apply(document)
 			
-			//testing
-			val ASTParser parser = ASTParser.newParser(AST.JLS12);
-			parser.setSource(iCompUnit);
-			val CompilationUnit compUnit = parser.createAST(null) as CompilationUnit;
-
-			if(!compUnit.types.exists[ (it as TypeDeclaration).name.identifier == builder.newInterface.name.identifier]) {
+			
+			val compUnit = Utils.getCompilationUnit(target.head)
+			val iCompUnit= compUnit.getJavaElement() as ICompilationUnit
+			
+			val parser = ASTParser.newParser(AST.JLS12);
+			parser.source = iCompUnit;
+			val newcompUnit = parser.createAST(null) as CompilationUnit;
+			
+			newcompUnit.recordModifications
+			
+			if(refactoringType == "new") {
+				println("create a new lambda and interface")
 				
-				compUnit.recordModifications
+				val replacementLambdaExpression = PatternParser.parse(replacementString).patterns.get(0) as PLambdaExpression
+				val newInterface = builder.buildNewInterface(replacementLambdaExpression, newcompUnit.AST, bindings, nameBindings, typeBindings, parameterBindings, replacementTypeReferenceString)
+				newcompUnit.types().add(newInterface)
 				
+				
+			} else {
+				println("get the existing interface and modify it")
+				
+				
+			}
+			
+			
+			/*
+			if(!compUnit.types.exists[ (it as TypeDeclaration).name.identifier == builder.newInterface.name.identifier]) {				
 				val newInterface = compUnit.AST.newTypeDeclaration
 				newInterface.interface = true
 				newInterface.name.identifier = builder.newInterface.name.identifier
@@ -155,13 +203,15 @@ class LambdaRefactoring implements Refactoring {
 						newMethodDeclaration.parameters.add(methodParameterDeclaration)
 					}
 				}
-				
 				compUnit.types().add(newInterface)
-				val edits2 = compUnit.rewrite(document, iCompUnit.javaProject.getOptions(true) )
-				edits2.apply(document);
-		   		val String newSource = document.get();		
-				iCompUnit.getBuffer().setContents(newSource);
 			}
+			*/
+			
+			val edits2 = newcompUnit.rewrite(document, iCompUnit.javaProject.getOptions(true) )
+			edits2.apply(document);
+		   	val String newSource = document.get();		
+			iCompUnit.getBuffer().setContents(newSource);
+			
 		} catch (Exception e) {
 			println(e)
 			return false

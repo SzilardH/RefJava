@@ -3,12 +3,16 @@ package hu.elte.refjava.api.patterns
 import hu.elte.refjava.lang.refJava.PBlockExpression
 import hu.elte.refjava.lang.refJava.PConstructorCall
 import hu.elte.refjava.lang.refJava.PExpression
+import hu.elte.refjava.lang.refJava.PFeatureCall
+import hu.elte.refjava.lang.refJava.PLambdaExpression
 import hu.elte.refjava.lang.refJava.PMemberFeatureCall
 import hu.elte.refjava.lang.refJava.PMetaVariable
 import hu.elte.refjava.lang.refJava.PMethodDeclaration
 import hu.elte.refjava.lang.refJava.PNameMetaVariable
+import hu.elte.refjava.lang.refJava.PParameterMetaVariable
 import hu.elte.refjava.lang.refJava.PTargetExpression
 import hu.elte.refjava.lang.refJava.PTypeMetaVariable
+import hu.elte.refjava.lang.refJava.PVariableDeclaration
 import hu.elte.refjava.lang.refJava.Pattern
 import java.lang.reflect.Type
 import java.util.List
@@ -17,12 +21,9 @@ import java.util.Queue
 import org.eclipse.jdt.core.dom.AST
 import org.eclipse.jdt.core.dom.ASTNode
 import org.eclipse.jdt.core.dom.Expression
+import org.eclipse.jdt.core.dom.MethodDeclaration
 import org.eclipse.jdt.core.dom.Modifier.ModifierKeyword
-import org.eclipse.jdt.core.dom.TypeDeclaration
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite
-import hu.elte.refjava.lang.refJava.PParameterMetaVariable
-import hu.elte.refjava.lang.refJava.PFeatureCall
-import hu.elte.refjava.lang.refJava.PVariableDeclaration
 
 class ASTBuilder {
 
@@ -34,7 +35,6 @@ class ASTBuilder {
 	Map<String, Type> typeBindings
 	Map<String, List<Pair<Type, String>>> parameterBindings
 	Queue<String> typeReferenceQueue
-	TypeDeclaration newInterface
 	
 	new(Pattern pattern) {
 		this.pattern = pattern
@@ -44,13 +44,35 @@ class ASTBuilder {
 		rewrite
 	}
 	
-	def getNewInterface() {
-		newInterface
-	}
-	
 	def build(Pattern pattern, AST ast, Map<String, List<? extends ASTNode>> bindings, Map<String, String> nameBindings, Map<String, Type> typeBindings, Map<String, List<Pair<Type, String>>> parameterBindings, String typeRefString) {
 		this.pattern = pattern
 		build(ast, bindings, nameBindings, typeBindings, parameterBindings, typeRefString)
+	}
+	
+	def buildNewInterface(PLambdaExpression lambdaExpr, AST ast, Map<String, List<? extends ASTNode>> bindings, Map<String, String> nameBindings, Map<String, Type> typeBindings, Map<String, List<Pair<Type, String>>> parameterBindings, String typeRefString){
+		this.ast = ast
+		
+		val newInterface = ast.newTypeDeclaration
+		newInterface.interface = true
+		newInterface.name.identifier = "test"
+		
+		if(typeRefString !== null) {
+			val tmp = typeRefString.split("\\|")
+			this.typeReferenceQueue = newLinkedList
+			this.typeReferenceQueue.addAll(tmp)
+		}
+		
+		val lambdaExpressionBody = ((lambdaExpr.expression as PMemberFeatureCall).memberCallTarget as PConstructorCall).elements
+		val newInterfaceBodyDeclarations = lambdaExpressionBody.doBuildPatterns
+		
+		newInterfaceBodyDeclarations.forEach[
+			if(it instanceof MethodDeclaration) {
+				(it as MethodDeclaration).body = null
+			}
+		]
+		
+		newInterface.bodyDeclarations.addAll(newInterfaceBodyDeclarations)
+		return newInterface
 	}
 
 	def build(AST ast, Map<String, List<? extends ASTNode>> bindings, Map<String, String> nameBindings, Map<String, Type> typeBindings, Map<String, List<Pair<Type, String>>> parameterBindings, String typeRefString) {
@@ -60,8 +82,6 @@ class ASTBuilder {
 		this.nameBindings = nameBindings
 		this.typeBindings = typeBindings
 		this.parameterBindings = parameterBindings
-		this.newInterface = ast.newTypeDeclaration
-		this.newInterface.interface = true
 		
 		if(typeRefString !== null) {
 			val tmp = typeRefString.split("\\|")
@@ -103,10 +123,8 @@ class ASTBuilder {
 		if (constCall.metaName !== null) {
 			val name = (constCall.metaName as PNameMetaVariable).name
 			class.type = ast.newSimpleType(ast.newName(nameBindings.get(name) ) )
-			newInterface.name.identifier = nameBindings.get(name)
 		} else {
 			class.type = ast.newSimpleType(ast.newName(constCall.name) )
-			newInterface.name.identifier = constCall.name
 		}
 		
 		//adding constructor call anonymous class declaration (body)
@@ -125,8 +143,6 @@ class ASTBuilder {
 	//method builder
 	def private dispatch ASTNode doBuild(PMethodDeclaration methodDecl) {
 		val method = ast.newMethodDeclaration
-		val newInterfaceMethod = ast.newMethodDeclaration
-		
 		
 		//adding method name
 		if (methodDecl.prefix.metaName !== null) {
@@ -163,11 +179,6 @@ class ASTBuilder {
 				methodParameterDeclaration.type = Utils.getTypeFromId(typeName, ast)
 				methodParameterDeclaration.name.identifier = argument.name
 				method.parameters.add(methodParameterDeclaration)
-				
-				val interfaceMethodParameterDeclatration = ast.newSingleVariableDeclaration
-				interfaceMethodParameterDeclatration.type = Utils.getTypeFromId(typeName, ast)
-				interfaceMethodParameterDeclatration.name.identifier = argument.name
-				newInterfaceMethod.parameters.add(interfaceMethodParameterDeclatration)
 			}
 		} else if (methodDecl.metaArguments !== null) {
 			val parameterList = parameterBindings.get((methodDecl.metaArguments as PParameterMetaVariable).name)
@@ -176,11 +187,6 @@ class ASTBuilder {
 				methodParameterDeclaration.type = Utils.getTypeFromId(parameter.key.toString, ast)
 				methodParameterDeclaration.name.identifier = parameter.value
 				method.parameters.add(methodParameterDeclaration)
-				
-				val interfaceMethodParameterDeclatration = ast.newSingleVariableDeclaration
-				interfaceMethodParameterDeclatration.type = Utils.getTypeFromId(parameter.key.toString, ast)
-				interfaceMethodParameterDeclatration.name.identifier = parameter.value
-				newInterfaceMethod.parameters.add(interfaceMethodParameterDeclatration)
 			}
 		}
 		
@@ -203,10 +209,6 @@ class ASTBuilder {
 		}
 		block.statements.addAll(methodBodyList)
 		method.body = block
-		
-		newInterfaceMethod.name.identifier = method.name.identifier
-		newInterfaceMethod.returnType2 = Utils.getTypeFromId(method.returnType2.toString, ast)
-		newInterface.bodyDeclarations.add(newInterfaceMethod)
 		return method
 	}
 	
@@ -244,6 +246,10 @@ class ASTBuilder {
 		return newVar
 	}
 	
+	//lambda expression builder
+	def private dispatch ASTNode doBuild(PLambdaExpression lambdaExpr) {
+		return doBuild(lambdaExpr.expression)
+	}
 	
 	//method invocation (with expression) builder
 	def private dispatch ASTNode doBuild(PMemberFeatureCall featureCall) {
@@ -280,12 +286,13 @@ class ASTBuilder {
 		//adding method invocation name
 		methodInv.name.identifier = featureCall.feature
 		
+		//adding method parameters
 		//TODO
+		
 		
 		val statement = ast.newExpressionStatement(methodInv)
 		return statement
 	}
-	
 	
 	//block builder
 	def private dispatch doBuild(PBlockExpression blockPattern) {
@@ -297,9 +304,7 @@ class ASTBuilder {
 		return block
 	}
 	
-	
 	def private List<ASTNode> doBuildPatterns(List<PExpression> patterns) {
 		patterns.map[doBuild].filterNull.toList
 	}
-	
 }

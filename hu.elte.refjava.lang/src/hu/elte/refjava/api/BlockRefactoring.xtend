@@ -6,9 +6,9 @@ import hu.elte.refjava.api.patterns.PatternParser
 import java.lang.reflect.Type
 import java.util.List
 import java.util.Map
-import org.eclipse.jdt.core.ICompilationUnit
 import org.eclipse.jdt.core.dom.ASTNode
 import org.eclipse.jface.text.IDocument
+import org.eclipse.jdt.core.dom.TypeDeclaration
 
 class BlockRefactoring implements Refactoring {
 	
@@ -32,7 +32,7 @@ class BlockRefactoring implements Refactoring {
 		builder = new ASTBuilder(PatternParser.parse(replacementPatternString))
 	}
 	
-	override init(List<? extends ASTNode> target, IDocument document, ICompilationUnit iCompUnit) {
+	override init(List<? extends ASTNode> target, IDocument document, List<TypeDeclaration> allTypeDeclInWorkspace) {
 		this.target = target
 		this.document = document
 	}
@@ -42,6 +42,7 @@ class BlockRefactoring implements Refactoring {
 	}
 	
 	override apply() {
+		setMetaVariables()
 		return if(!safeTargetCheck) {
 			Status.TARGET_MATCH_FAILED
 		} else if (!safeMatch) {
@@ -58,13 +59,10 @@ class BlockRefactoring implements Refactoring {
 	}
 	
 	def private safeMatch() {
-		setMetaVariables()
 		if (!matcher.match(target, nameBindings, typeBindings, parameterBindings, matchingTypeReferenceString)  ) {
 			return false
 		}
-		
 		target = matcher.modifiedTarget.toList
-		
 		bindings.putAll(matcher.bindings)
 		return true 
 	}
@@ -78,7 +76,16 @@ class BlockRefactoring implements Refactoring {
 	}
 	
 	def protected targetCheck(String targetPatternString) {
-		return matcher.match(PatternParser.parse(targetPatternString), target, targetTypeReferenceString)
+		try {
+			if(!matcher.match(PatternParser.parse(targetPatternString), target, targetTypeReferenceString)) {
+				return false
+			}
+			bindings.putAll(matcher.bindings)
+			return true
+		} catch (Exception e) {
+			println(e)
+			return false
+		}
 	}
 
 	def private safeCheck() {
@@ -117,7 +124,7 @@ class BlockRefactoring implements Refactoring {
 		} catch (Exception e) {
 			return false
 		}
-
+		
 		return true
 	}
 }

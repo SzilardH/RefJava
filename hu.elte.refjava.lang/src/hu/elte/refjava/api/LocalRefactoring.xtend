@@ -6,9 +6,9 @@ import hu.elte.refjava.api.patterns.PatternParser
 import java.lang.reflect.Type
 import java.util.List
 import java.util.Map
-import org.eclipse.jdt.core.ICompilationUnit
 import org.eclipse.jdt.core.dom.ASTNode
 import org.eclipse.jface.text.IDocument
+import org.eclipse.jdt.core.dom.TypeDeclaration
 
 class LocalRefactoring implements Refactoring {
 
@@ -32,12 +32,13 @@ class LocalRefactoring implements Refactoring {
 		builder = new ASTBuilder(PatternParser.parse(replacementPatternString))
 	}
 
-	override init(List<? extends ASTNode> target, IDocument document, ICompilationUnit iCompUnit) {
+	override init(List<? extends ASTNode> target, IDocument document, List<TypeDeclaration> allTypeDeclInWorkspace) {
 		this.target = target
 		this.document = document
 	}
 
 	override apply() {
+		setMetaVariables()
 		return if (!safeMatch) {
 			Status.MATCH_FAILED
 		} else if (!safeCheck) {
@@ -52,7 +53,6 @@ class LocalRefactoring implements Refactoring {
 	}
 
 	def private safeMatch() {
-		setMetaVariables()
 		if (!matcher.match(target, nameBindings, typeBindings, parameterBindings, matchingTypeReferenceString)) {
 			return false
 		}

@@ -7,6 +7,7 @@ import org.eclipse.xtext.EcoreUtil2
 import org.eclipse.xtext.common.types.JvmTypeReference
 import org.eclipse.jdt.core.dom.ASTNode
 import org.eclipse.jdt.core.dom.TypeDeclaration
+import org.eclipse.jdt.core.dom.CompilationUnit
 
 class Utils {
 	
@@ -61,4 +62,13 @@ class Utils {
 		}
 		tmp as TypeDeclaration
 	}
+	
+	def static getCompilationUnit(ASTNode node) {
+		var tmp = node
+			while (!(tmp instanceof CompilationUnit)) {
+				tmp = tmp.parent
+		}
+		tmp as CompilationUnit
+	}
+	
 }

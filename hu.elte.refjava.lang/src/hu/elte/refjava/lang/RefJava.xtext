@@ -118,6 +118,10 @@ PExpression returns PExpression:
 	PMemberFeatureCall
 ;
 
+PLambdaExpression returns PExpression:
+	{PLambdaExpression} 'lambda' expression=PMemberFeatureCall
+;
+
 PMemberFeatureCall returns PExpression:
 	PPrimaryExpression (
 		=>({PMemberFeatureCall.memberCallTarget=current} ".")
@@ -133,6 +137,7 @@ PPrimaryExpression returns PExpression
 	| PFeatureCall
 	| PReturnExpression
 	| PTargetExpression
+	| PLambdaExpression
 	| PNothingExpression
 	| PMetaVariable
 	| PTypeMetaVariable
