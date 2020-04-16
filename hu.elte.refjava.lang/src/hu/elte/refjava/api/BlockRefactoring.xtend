@@ -53,12 +53,18 @@ class BlockRefactoring implements Refactoring {
 	}
 	
 	def private safeMatch() {
-		if (!matcher.match(target, nameBindings, typeBindings, parameterBindings, matchingTypeReferenceString)  ) {
+		try {
+			if (!matcher.match(target, nameBindings, typeBindings, parameterBindings, matchingTypeReferenceString)  ) {
+				return false
+			}
+			target = matcher.modifiedTarget.toList
+			bindings.putAll(matcher.bindings)
+			return true 
+		} catch (Exception e) {
+			println(e)
 			return false
 		}
-		target = matcher.modifiedTarget.toList
-		bindings.putAll(matcher.bindings)
-		return true 
+		
 	}
 	
 	def protected void setMetaVariables() {
@@ -86,22 +92,23 @@ class BlockRefactoring implements Refactoring {
 		try {
 			check()
 		} catch (Exception e) {
+			println(e)
 			false
 		}
 	}
 
 	def protected check() {
-		Check.isInsideBlock(target)
+		//Check.isInsideBlock(target)
+		true
 	}
 
 	def private safeBuild() {
 		try {
 			replacement = builder.build(target.head.AST, bindings, nameBindings, typeBindings, parameterBindings, replacementTypeReferenceString)
 		} catch (Exception e) {
-			System.out.println(e)
+			println(e)
 			return false
 		}
-
 		return true
 	}
 
@@ -110,15 +117,15 @@ class BlockRefactoring implements Refactoring {
 			val rewrite = builder.rewrite
 			target.tail.forEach[rewrite.remove(it, null)]
 			
-			val group = rewrite.createGroupNode( replacement )
+			val group = rewrite.createGroupNode(replacement)
 			rewrite.replace( target.head, group, null)
 			val edits = rewrite.rewriteAST(document, null)
 			edits.apply(document)
 			
 		} catch (Exception e) {
+			println(e)
 			return false
 		}
-		
 		return true
 	}
 }

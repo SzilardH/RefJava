@@ -107,8 +107,7 @@ class PatternMatcher {
 		//matching constructor call name
 		var boolean nameCheck
 		if (constCall.metaName !== null) {
-			//TODO
-			nameCheck = true
+			nameCheck = nameBindings.get((constCall.metaName as PMetaVariable).name) == classInstance.type.toString
 		} else {
 			nameCheck = constCall.name == classInstance.type.toString
 		}
@@ -116,13 +115,8 @@ class PatternMatcher {
 		//matching constructor call's methods
 		var boolean anonClassCheck
 		if (classInstance.anonymousClassDeclaration !== null && constCall.elements !== null) {
-			//if (constCall.elements.size != classInstance.anonymousClassDeclaration.bodyDeclarations.size) {
-				//return false
-			//} else {
-				anonClassCheck = doMatchChildren(constCall.elements, classInstance.anonymousClassDeclaration.bodyDeclarations)
-			//}	
+			anonClassCheck = doMatchChildren(constCall.elements, classInstance.anonymousClassDeclaration.bodyDeclarations)	
 		} else {
-			//TODO
 			anonClassCheck = true
 		}
 		
@@ -135,8 +129,7 @@ class PatternMatcher {
 		//matching method name
 		var boolean nameCheck
 		if(pMethodDecl.prefix.metaName !== null) {
-			//TODO
-			nameCheck = true
+			nameCheck = nameBindings.get((pMethodDecl.prefix.metaName as PMetaVariable).name) == methodDecl.name.identifier
 		} else {
 			nameCheck = pMethodDecl.prefix.name == methodDecl.name.identifier
 		}
@@ -150,12 +143,11 @@ class PatternMatcher {
 			case PROTECTED: visibilityCheck = Modifier.isProtected(modifiers)
 			default: visibilityCheck = modifiers.bitwiseAnd(Modifier.PROTECTED) == 0 && modifiers.bitwiseAnd(Modifier.PRIVATE) == 0 && modifiers.bitwiseAnd(Modifier.PUBLIC) == 0
 		}
-		
+
 		//matching method return value
 		var boolean returnCheck
 		if(pMethodDecl.prefix.metaType !== null) {
-			//TODO
-			returnCheck = true
+			returnCheck = typeBindings.get((pMethodDecl.prefix.metaType as PMetaVariable).name).typeName == methodDecl.returnType2.resolveBinding.qualifiedName
 		} else {
 			returnCheck = methodDecl.returnType2.resolveBinding.qualifiedName == typeReferenceQueue.remove
 		}
@@ -178,6 +170,7 @@ class PatternMatcher {
 			}
 		} else if (pMethodDecl.metaArguments !== null) {
 			//TODO
+			parameterBindings.get("ASD")
 			parameterCheck = true
 		}
 		
@@ -197,8 +190,7 @@ class PatternMatcher {
 			if (featureCall.feature !== null) {
 				nameCheck = featureCall.feature == methodInv.name.identifier
 			} else {
-				//TODO
-				nameCheck = true
+				nameCheck = nameBindings.get((featureCall.metaFeature as PMetaVariable).name) == methodInv.name.identifier
 			}
 			
 			//matching method invocation parameters
@@ -226,8 +218,7 @@ class PatternMatcher {
 		//matching variable declaration name
 		var boolean nameCheck
 		if (varDecl.metaName !== null) {
-			//TODO
-			nameCheck = true
+			nameCheck = nameBindings.get((varDecl.metaName as PMetaVariable).name) == (varDeclStatement.fragments.head as VariableDeclarationFragment).name.identifier
 		} else {
 			nameCheck = varDecl.name == (varDeclStatement.fragments.head as VariableDeclarationFragment).name.identifier
 		}
@@ -237,8 +228,7 @@ class PatternMatcher {
 		if(varDecl.type !== null) {
 			typeCheck = varDeclStatement.type.resolveBinding.qualifiedName == typeReferenceQueue.remove
 		} else {
-			//TODO
-			typeCheck = true
+			typeCheck = varDeclStatement.type.resolveBinding.qualifiedName == typeBindings.get((varDecl.metaType as PMetaVariable).name).typeName
 		}
 		
 		return nameCheck && typeCheck
@@ -249,8 +239,7 @@ class PatternMatcher {
 		//matching field declaration name
 		var boolean nameCheck
 		if (varDecl.metaName !== null) {
-			//TODO
-			nameCheck = true
+			nameCheck = nameBindings.get((varDecl.metaName as PMetaVariable).name) == (fieldDecl.fragments.head as VariableDeclarationFragment).name.identifier
 		} else {
 			nameCheck = varDecl.name == (fieldDecl.fragments.head as VariableDeclarationFragment).name.identifier
 		}
@@ -270,14 +259,11 @@ class PatternMatcher {
 		if(varDecl.type !== null) {
 			typeCheck = fieldDecl.type.resolveBinding.qualifiedName == typeReferenceQueue.remove
 		} else {
-			//TODO
-			typeCheck = true
+			typeCheck = fieldDecl.type.resolveBinding.qualifiedName == typeBindings.get((varDecl.metaType as PMetaVariable).name).typeName
 		}
 		
 		return nameCheck && visibilityCheck && typeCheck
 	}
-	
-	
 	
 	def private dispatch doMatch(PExpression anyOtherPattern, ASTNode anyOtherNode) {
 		false
@@ -328,13 +314,13 @@ class PatternMatcher {
 			return true
 		}
 		
-		var List<PExpression> preTargetExpression = patterns.clone.takeWhile[ !(it instanceof PTargetExpression) ].toList.reverse
+		var List<PExpression> preTargetExpression = patterns.clone.takeWhile[ !(it instanceof PTargetExpression) ].toList
 		var List<PExpression> postTargetExpression = patterns.clone.reverse.takeWhile[ !(it instanceof PTargetExpression) ].toList.reverse
 		
 		val List<?super ASTNode> targetEnvironment = newArrayList
 		targetEnvironment.addAll( (selectedNodes.head.parent as Block).statements )
 		
-		var List<ASTNode> preSelectedNodes = (targetEnvironment as List<?extends ASTNode>).clone.takeWhile[ it != selectedNodes.head ].toList.reverse
+		var List<ASTNode> preSelectedNodes = (targetEnvironment as List<?extends ASTNode>).clone.takeWhile[ it != selectedNodes.head ].toList
 		var List<ASTNode> postSelectedNodes = (targetEnvironment as List<?extends ASTNode>).clone.reverse.takeWhile[ it != selectedNodes.last ].toList.reverse
 		
 		var Boolean pre

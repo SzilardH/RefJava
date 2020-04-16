@@ -1,9 +1,9 @@
 package hu.elte.refjava.lang.validation
 
 import hu.elte.refjava.lang.refJava.MetaVariable
+import hu.elte.refjava.lang.refJava.PBlockExpression
 import hu.elte.refjava.lang.refJava.PExpression
 import hu.elte.refjava.lang.refJava.PMetaVariable
-import hu.elte.refjava.lang.refJava.PBlockExpression
 import hu.elte.refjava.lang.refJava.PTargetExpression
 import hu.elte.refjava.lang.refJava.RefJavaPackage
 import hu.elte.refjava.lang.refJava.SchemeInstanceRule
@@ -13,7 +13,6 @@ import org.eclipse.xtext.EcoreUtil2
 import org.eclipse.xtext.validation.Check
 
 import static hu.elte.refjava.lang.refJava.RefJavaPackage.Literals.*
-
 
 class RefJavaValidator extends AbstractRefJavaValidator {
 

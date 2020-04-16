@@ -28,7 +28,6 @@ class Check {
 	
 	public static List<TypeDeclaration> allTypeDeclarationInWorkSpace
 	
-	//actual
 	def static isInsideBlock(ASTNode node) {
 		node.parent instanceof Block
 	}
@@ -83,7 +82,6 @@ class Check {
 							found = true
 							return false
 						}
-
 						return true
 					}
 				}
@@ -96,7 +94,6 @@ class Check {
 	def dispatch static boolean isReferencedIn(List<VariableDeclarationStatement> varDeclList, List<? extends ASTNode> nodes) {
 		varDeclList.forall[!isReferencedIn(nodes)]
 	}
-	
 	
 	//lambda checks	
 	def static isFresh(String name) {
@@ -432,8 +429,7 @@ class Check {
 	}
 	
 	def static isLessVisible(String targetVisibility, String actualVisibility) {
-		if (
-			(actualVisibility == "public" && (targetVisibility == "private" || targetVisibility == "default" || targetVisibility == "protected")) ||
+		if ((actualVisibility == "public" && (targetVisibility == "private" || targetVisibility == "default" || targetVisibility == "protected")) ||
 			actualVisibility == "protected" && (targetVisibility == "private" || targetVisibility == "default") ||
 			actualVisibility == "default" && (targetVisibility == "private") ) {
 			true
@@ -472,54 +468,14 @@ class Check {
 		}
 	}
 	
-	
-	
-	//needs work
-	
-	/*
-	def private static subClasses(TypeDeclaration typeDecl) {
-		val typeBinding = typeDecl.resolveBinding
-		val List<TypeDeclaration> subClasses = newArrayList
-		for (t : allTypeDeclarationInWorkSpace) {
-			if(t.superclassType !== null && t.superclassType.resolveBinding.qualifiedName == typeBinding.qualifiedName) {
-				subClasses.add(t)
-			}
-		}
-		subClasses
-	}
-	
-	def static visibilityFrom(String fieldName, TypeDeclaration typeDecl) {
-		val typeBinding = typeDecl.resolveBinding
-		val targetType = allTypeDeclarationInWorkSpace.findFirst[it.resolveBinding.qualifiedName == typeBinding.qualifiedName]
-		
-		val List<TypeDeclaration> result = newArrayList
-		result.add(targetType)
-		
-		val Queue<TypeDeclaration> typeDeclarationsToCheck = newLinkedList
-		
-		typeDeclarationsToCheck.addAll(typeDecl.subClasses)
-		
-		while(!typeDeclarationsToCheck.empty) {
-			val typeToCheck = typeDeclarationsToCheck.remove
-			
-			if(!typeToCheck.bodyDeclarations.exists[it instanceof FieldDeclaration && ((it as FieldDeclaration).fragments.head as VariableDeclarationFragment).name.identifier == fieldName]) {
-				result.add(typeToCheck)
-				typeDeclarationsToCheck.addAll(typeToCheck.subClasses)
-			}
-		}
-		result
-	}*/
-	
 	def private static getTypeOfFieldOrVarDeclOfName(Name name, TypeDeclaration typeDecl) {
-		
 		val binding = if (name instanceof QualifiedName) {
 			name.qualifier.resolveBinding
 		} else if (name instanceof SimpleName) {
 			name.resolveBinding
 		}
 		
-		
-		val List<ASTNode> asd = newArrayList
+		val List<ASTNode> result = newArrayList
 		typeDecl.bodyDeclarations.exists[
 			val visitor = new ASTVisitor() {
 				public var boolean found = false
@@ -528,11 +484,10 @@ class Check {
 					if(name.resolveBinding.isEqualTo(binding) && (Utils.getFieldDeclaration(name) !== null || Utils.getVariableDeclaration(name) !== null) ) {
 						found = true
 						if(Utils.getFieldDeclaration(name) !== null) {
-							asd.add(Utils.getFieldDeclaration(name))
+							result.add(Utils.getFieldDeclaration(name))
 						} else {
-							asd.add(Utils.getVariableDeclaration(name))
+							result.add(Utils.getVariableDeclaration(name))
 						}
-						
 						return false
 					}
 					return true
@@ -542,15 +497,14 @@ class Check {
 			return visitor.found
 		]
 		
-		if(!asd.empty && asd.get(0) instanceof FieldDeclaration) {
-			return (asd.get(0) as FieldDeclaration).type
-		} else if (!asd.empty && asd.get(0) instanceof VariableDeclarationStatement) {
-			return (asd.get(0) as VariableDeclarationStatement).type
+		if(!result.empty && result.get(0) instanceof FieldDeclaration) {
+			return (result.get(0) as FieldDeclaration).type
+		} else if (!result.empty && result.get(0) instanceof VariableDeclarationStatement) {
+			return (result.get(0) as VariableDeclarationStatement).type
 		}
 	}
 	
 	def static referredField(ASTNode reference) {
-		
 		val binding = (reference as SimpleName).resolveBinding
 		
 		for(typeDecl : allTypeDeclarationInWorkSpace) {
@@ -560,7 +514,6 @@ class Check {
 				}
 			}
 		}
-		
 		//error
 	}
 	
@@ -582,7 +535,6 @@ class Check {
 				it.name.identifier == fragmentName
 			]
 		] as FieldDeclaration
-		
 		
 		val List<ASTNode> a = newArrayList
 		a.add(fieldInSuperClass)
@@ -738,10 +690,6 @@ class Check {
 		}
 	}
 	
-	
-	
-	
-	
 	def static publicReferences(List<String> fragmentNames, TypeDeclaration targetTypeDecl) {
 		references("public", fragmentNames, targetTypeDecl)
 	}
@@ -753,9 +701,6 @@ class Check {
 	def static privateReferences(List<String> fragmentNames, TypeDeclaration targetTypeDecl) {
 		references("private", fragmentNames, targetTypeDecl)
 	}
-	
-	
-	
 	
 	
 	

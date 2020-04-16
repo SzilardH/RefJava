@@ -6,6 +6,8 @@ import hu.elte.refjava.api.ClassRefactoring
 import hu.elte.refjava.api.LambdaRefactoring
 import hu.elte.refjava.api.LocalRefactoring
 import hu.elte.refjava.api.patterns.Utils
+import hu.elte.refjava.lang.refJava.MetaVariableType
+import hu.elte.refjava.lang.refJava.PMetaVariable
 import hu.elte.refjava.lang.refJava.SchemeInstanceRule
 import hu.elte.refjava.lang.refJava.SchemeType
 import java.lang.reflect.Type
@@ -16,8 +18,6 @@ import org.eclipse.xtext.serializer.ISerializer
 import org.eclipse.xtext.xbase.jvmmodel.AbstractModelInferrer
 import org.eclipse.xtext.xbase.jvmmodel.IJvmDeclaredTypeAcceptor
 import org.eclipse.xtext.xbase.jvmmodel.JvmTypesBuilder
-import hu.elte.refjava.lang.refJava.PMetaVariable
-import hu.elte.refjava.lang.refJava.MetaVariableType
 
 class RefJavaJvmModelInferrer extends AbstractModelInferrer {
 

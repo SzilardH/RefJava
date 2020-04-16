@@ -149,29 +149,29 @@ class ClassRefactoring implements Refactoring {
 		if(refactoringType == RefactoringType.NEW_METHOD) {
 			
 			val compUnit = Utils.getCompilationUnit(target.head)
-			val iCompUnit = compUnit.getJavaElement() as ICompilationUnit
+			val iCompUnit = compUnit.getJavaElement as ICompilationUnit
 			
 			val parser = ASTParser.newParser(AST.JLS12);
 			parser.resolveBindings = true
-			parser.source = iCompUnit;
-			val newCompUnit = parser.createAST(null) as CompilationUnit;
+			parser.source = iCompUnit
+			val newCompUnit = parser.createAST(null) as CompilationUnit
 			newCompUnit.recordModifications
 			
 			val definitionPattern = PatternParser.parse(definitionString)
-			val newMethod = builder.build(definitionPattern, newCompUnit.AST, bindings, nameBindings, typeBindings, parameterBindings, definitionTypeReferenceString).head
-
+			val newMethod = builder.build(definitionPattern, newCompUnit.AST, bindings, nameBindings, typeBindings, parameterBindings, definitionTypeReferenceString).head as MethodDeclaration
+			
 			val targetClass = newCompUnit.types.findFirst[(it as TypeDeclaration).resolveBinding.qualifiedName == Utils.getTypeDeclaration(target.head).resolveBinding.qualifiedName ] as TypeDeclaration
 			targetClass.bodyDeclarations.add(newMethod)
 
 			val edits2 = newCompUnit.rewrite(document, iCompUnit.javaProject.getOptions(true))
 			edits2.apply(document)
 			val newSource = document.get;	
-			iCompUnit.getBuffer().setContents(newSource);
+			iCompUnit.getBuffer.setContents(newSource)
 			
-			val parser2 = ASTParser.newParser(AST.JLS12);
+			val parser2 = ASTParser.newParser(AST.JLS12)
 			parser2.resolveBindings = true
 			parser2.source = iCompUnit
-			val newCompUnit2 = parser2.createAST(null) as CompilationUnit;
+			val newCompUnit2 = parser2.createAST(null) as CompilationUnit
 			
 			val targetClass2 = newCompUnit2.types.findFirst[(it as TypeDeclaration).resolveBinding.qualifiedName == Utils.getTypeDeclaration(target.head).resolveBinding.qualifiedName] as TypeDeclaration
 			val newMethodInClass = targetClass2.bodyDeclarations.findFirst[it instanceof MethodDeclaration && (it as MethodDeclaration).name.identifier == (newMethod as MethodDeclaration).name.identifier] as MethodDeclaration
@@ -185,18 +185,18 @@ class ClassRefactoring implements Refactoring {
 					&& Check.isSubTypeOf(Check.type(definition), Check.type(Check.overridenMethodFrom(Check.getMethodName(definition), Check.parameters(definition), Check.enclosingClass(target))))
 					&& Check.visibility(Check.overridenMethodFrom(Check.getMethodName(definition), Check.parameters(definition), Check.enclosingClass(target))) != "public" 
 					&& Check.publicReferences(Check.getMethodName(definition), Check.parameters(definition), Check.enclosingClass(target)).empty
-					&& false
-				} else {
-					true
-				}
-				
+					//&& false
+					} else {
+						true
+					}
+					
 			newCompUnit2.recordModifications
 			targetClass2.bodyDeclarations.remove(newMethodInClass)
 			
 			val edits3 = newCompUnit2.rewrite(document, iCompUnit.javaProject.getOptions(true))
 			edits3.apply(document)
-			val newSource2 = document.get;	
-			iCompUnit.getBuffer().setContents(newSource2);
+			val newSource2 = document.get
+			iCompUnit.getBuffer.setContents(newSource2)
 			
 			return safeCheck
 			
@@ -213,8 +213,6 @@ class ClassRefactoring implements Refactoring {
 						&& Check.isSubTypeOf(Check.type(target), Check.type(Check.overridenMethodFrom(Check.getMethodName(target), Check.parameters(target), Check.superClass(Check.enclosingClass(target)))))
 						&& Check.visibility(Check.overridenMethodFrom(Check.getMethodName(target), Check.parameters(target), Check.superClass(Check.enclosingClass(target)))) != "public" 
 						&& Check.publicReferences(Check.getMethodName(target), Check.parameters(target), Check.superClass(Check.enclosingClass(target))).empty
-						
-						
 						} else {
 							true
 						}
@@ -260,13 +258,12 @@ class ClassRefactoring implements Refactoring {
 			}
 			
 			val compUnit = Utils.getCompilationUnit(target.head)
-			val targetICompUnit = compUnit.getJavaElement() as ICompilationUnit
+			val targetICompUnit = compUnit.getJavaElement as ICompilationUnit
 			
-			val parser = ASTParser.newParser(AST.JLS12);
+			val parser = ASTParser.newParser(AST.JLS12)
 			parser.resolveBindings = true
-			parser.source = targetICompUnit;
-			val targetCompUnit = parser.createAST(null) as CompilationUnit;
-			
+			parser.source = targetICompUnit
+			val targetCompUnit = parser.createAST(null) as CompilationUnit
 			targetCompUnit.recordModifications
 			
 			val definitionPattern = PatternParser.parse(definitionString)
@@ -284,7 +281,6 @@ class ClassRefactoring implements Refactoring {
 				val superClassType = targetTypeDeclaration.superclassType
 				val superClassTypeBinding = superClassType.resolveBinding
 				
-				//needs work
 				var TypeDeclaration superClass
 				for(t : typeDeclList) {
 					if (t.resolveBinding.toString == superClassTypeBinding.toString) {
@@ -293,7 +289,7 @@ class ClassRefactoring implements Refactoring {
 				}
 				
 				val compUnit2 = Utils.getCompilationUnit(superClass)
-				superICompUnit = compUnit2.getJavaElement() as ICompilationUnit
+				superICompUnit = compUnit2.getJavaElement as ICompilationUnit
 				
 				if (superICompUnit != targetICompUnit) {
 					superCompUnit = Utils.getCompilationUnit(superClass)
@@ -318,16 +314,15 @@ class ClassRefactoring implements Refactoring {
 			
 			val edits2 = targetCompUnit.rewrite(document, targetICompUnit.javaProject.getOptions(true))
 			edits2.apply(document)
-			val newSource = document.get;	
-			targetICompUnit.getBuffer().setContents(newSource);
-			
+			val newSource = document.get
+			targetICompUnit.getBuffer.setContents(newSource)
 			
 			if(superICompUnit !== null && superICompUnit != targetICompUnit) {
 				val superDocument = new Document(superICompUnit.source)
 				val edits3 = superCompUnit.rewrite(superDocument, superICompUnit.javaProject.getOptions(true))
 				edits3.apply(superDocument)
 				val superSource = superDocument.get
-				superICompUnit.getBuffer().setContents(superSource)
+				superICompUnit.getBuffer.setContents(superSource)
 			}
 		} catch (Exception e) {
 			println(e)

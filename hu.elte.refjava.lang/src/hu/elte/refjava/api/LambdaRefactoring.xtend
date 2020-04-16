@@ -14,10 +14,10 @@ import org.eclipse.jdt.core.dom.ASTNode
 import org.eclipse.jdt.core.dom.ASTParser
 import org.eclipse.jdt.core.dom.CompilationUnit
 import org.eclipse.jdt.core.dom.TypeDeclaration
+import org.eclipse.jface.text.Document
 import org.eclipse.jface.text.IDocument
 
 import static hu.elte.refjava.api.Check.*
-import org.eclipse.jface.text.Document
 
 class LambdaRefactoring implements Refactoring {
 	
@@ -190,10 +190,10 @@ class LambdaRefactoring implements Refactoring {
 			val compUnit = Utils.getCompilationUnit(target.head)
 			val iCompUnit= compUnit.getJavaElement() as ICompilationUnit
 			
-			val parser = ASTParser.newParser(AST.JLS12);
+			val parser = ASTParser.newParser(AST.JLS12)
 			parser.resolveBindings = true
-			parser.source = iCompUnit;
-			val newCompUnit = parser.createAST(null) as CompilationUnit;
+			parser.source = iCompUnit
+			val newCompUnit = parser.createAST(null) as CompilationUnit
 			
 			newCompUnit.recordModifications
 			val replacementLambdaExpression = PatternParser.parse(replacementString).patterns.get(0) as PMemberFeatureCall
@@ -217,7 +217,7 @@ class LambdaRefactoring implements Refactoring {
 					val edits3 = interfaceCompUnit.rewrite(interfaceDocument, interfaceICompUnit.javaProject.getOptions(true))
 					edits3.apply(interfaceDocument)
 					val interfaceSource = interfaceDocument.get
-					interfaceICompUnit.getBuffer().setContents(interfaceSource)	
+					interfaceICompUnit.getBuffer.setContents(interfaceSource)	
 				} else {
 					//if the interface's document is the same as the target document, we just simply remove the interface from the target document and then add the new
 					val newInterface = builder.buildNewInterface(replacementLambdaExpression, newCompUnit.AST, bindings, nameBindings, typeBindings, parameterBindings, replacementTypeReferenceString)
@@ -227,10 +227,10 @@ class LambdaRefactoring implements Refactoring {
 				}
 			}
 			
-			val edits2 = newCompUnit.rewrite(document, iCompUnit.javaProject.getOptions(true) )
-			edits2.apply(document);
-		   	val String newSource = document.get();		
-			iCompUnit.getBuffer().setContents(newSource);
+			val edits2 = newCompUnit.rewrite(document, iCompUnit.javaProject.getOptions(true))
+			edits2.apply(document)
+		   	val String newSource = document.get
+			iCompUnit.getBuffer.setContents(newSource)
 			
 		} catch (Exception e) {
 			println(e)

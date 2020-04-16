@@ -3,7 +3,6 @@
 	<name>hu.elte.refjava</name>
 	<comment></comment>
 	<projects>
-		<project>hu.elte.refjava.control</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

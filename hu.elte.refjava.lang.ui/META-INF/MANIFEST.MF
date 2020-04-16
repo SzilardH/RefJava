@@ -22,9 +22,13 @@ Require-Bundle: hu.elte.refjava,
  org.eclipse.xtend.lib;bundle-version="2.14.0";resolution:=optional,
  org.eclipse.jdt.debug.ui
 Import-Package: org.apache.log4j
-Bundle-RequiredExecutionEnvironment: JavaSE-10
-Export-Package: hu.elte.refjava.lang.ui.contentassist,
- hu.elte.refjava.lang.ui.quickfix,
+Bundle-RequiredExecutionEnvironment: JavaSE-12
+Export-Package: hu.elte.refjava.lang.ui,
+ hu.elte.refjava.lang.ui.contentassist,
+ hu.elte.refjava.lang.ui.editor,
  hu.elte.refjava.lang.ui.internal,
- hu.elte.refjava.lang.ui.editor
+ hu.elte.refjava.lang.ui.labeling,
+ hu.elte.refjava.lang.ui.outline,
+ hu.elte.refjava.lang.ui.quickfix,
+ hu.elte.refjava.lang.validation
 Bundle-Activator: hu.elte.refjava.lang.ui.internal.LangActivator

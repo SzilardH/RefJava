@@ -1,11 +1,11 @@
 package hu.elte.refjava.api
 
-import java.util.List
-import org.eclipse.jdt.core.dom.ASTNode
-import org.eclipse.jface.text.IDocument
-import org.eclipse.jdt.core.dom.TypeDeclaration
-import java.util.Map
 import java.lang.reflect.Type
+import java.util.List
+import java.util.Map
+import org.eclipse.jdt.core.dom.ASTNode
+import org.eclipse.jdt.core.dom.TypeDeclaration
+import org.eclipse.jface.text.IDocument
 
 interface Refactoring {
 	
@@ -23,7 +23,7 @@ interface Refactoring {
 		TARGET_MATCH_FAILED
 	}
 
-	def void init(List<? extends ASTNode> target, IDocument document, List<TypeDeclaration> allTypeDeclInWorkspace) {}
+	def void init(List<? extends ASTNode> target, IDocument document, List<TypeDeclaration> allTypeDeclInWorkspace)
 
 	def Status apply()
 
