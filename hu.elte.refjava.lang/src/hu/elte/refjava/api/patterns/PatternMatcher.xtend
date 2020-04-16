@@ -3,7 +3,6 @@ package hu.elte.refjava.api.patterns
 import hu.elte.refjava.lang.refJava.PBlockExpression
 import hu.elte.refjava.lang.refJava.PConstructorCall
 import hu.elte.refjava.lang.refJava.PExpression
-import hu.elte.refjava.lang.refJava.PLambdaExpression
 import hu.elte.refjava.lang.refJava.PMemberFeatureCall
 import hu.elte.refjava.lang.refJava.PMetaVariable
 import hu.elte.refjava.lang.refJava.PMethodDeclaration
@@ -25,6 +24,7 @@ import org.eclipse.jdt.core.dom.MethodInvocation
 import org.eclipse.jdt.core.dom.Modifier
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration
 import org.eclipse.jdt.core.dom.VariableDeclarationFragment
+import org.eclipse.jdt.core.dom.VariableDeclarationStatement
 import org.eclipse.xtext.EcoreUtil2
 
 class PatternMatcher {
@@ -40,7 +40,7 @@ class PatternMatcher {
 	new(Pattern pattern) {
 		this.pattern = pattern
 	}
-
+	
 	def getBindings() {
 		bindings
 	}
@@ -143,15 +143,12 @@ class PatternMatcher {
 		
 		//matching method visibility
 		var boolean visibilityCheck 
-		if(pMethodDecl.prefix.visibility.toString != "null") {
-			switch pMethodDecl.prefix.visibility {
-				case PUBLIC: visibilityCheck = Modifier.isPublic(methodDecl.getModifiers())
-				case PRIVATE: visibilityCheck = Modifier.isPrivate(methodDecl.getModifiers())
-				case PROTECTED: visibilityCheck = Modifier.isProtected(methodDecl.getModifiers())
-				default: {}
-			}
-		} else {
-			visibilityCheck = true
+		val modifiers = methodDecl.getModifiers
+		switch pMethodDecl.prefix.visibility {
+			case PUBLIC: visibilityCheck = Modifier.isPublic(modifiers)
+			case PRIVATE: visibilityCheck = Modifier.isPrivate(modifiers)
+			case PROTECTED: visibilityCheck = Modifier.isProtected(modifiers)
+			default: visibilityCheck = modifiers.bitwiseAnd(Modifier.PROTECTED) == 0 && modifiers.bitwiseAnd(Modifier.PRIVATE) == 0 && modifiers.bitwiseAnd(Modifier.PUBLIC) == 0
 		}
 		
 		//matching method return value
@@ -160,7 +157,7 @@ class PatternMatcher {
 			//TODO
 			returnCheck = true
 		} else {
-			returnCheck = methodDecl.returnType2.toString == typeReferenceQueue.remove
+			returnCheck = methodDecl.returnType2.resolveBinding.qualifiedName == typeReferenceQueue.remove
 		}
 		
 		//matching method parameters
@@ -175,7 +172,7 @@ class PatternMatcher {
 				while(argIt.hasNext && parameterCheck) {
 					val arg = argIt.next
 					val param = paramIt.next
-					parameterCheck = param.name.identifier == arg.name && param.type.toString == typeReferenceQueue.remove 
+					parameterCheck = param.name.identifier == arg.name && param.type.resolveBinding.qualifiedName == typeReferenceQueue.remove 
 				}
 				
 			}
@@ -188,11 +185,6 @@ class PatternMatcher {
 		val boolean bodyCheck = doMatch(pMethodDecl.body, methodDecl.body)
 		
 		return nameCheck && visibilityCheck && parameterCheck && returnCheck && bodyCheck
-	}
-	
-	//lambda expression matching
-	def private dispatch boolean doMatch(PLambdaExpression lambdaExpr, ExpressionStatement expStatement) {
-		doMatch(lambdaExpr.expression, expStatement)
 	}
 	
 	//method invocation matching
@@ -229,9 +221,32 @@ class PatternMatcher {
 	}
 	
 	//variable declaration matching
-	def private dispatch boolean doMatch(PVariableDeclaration varDecl, FieldDeclaration fieldDecl) {
+	def private dispatch boolean doMatch(PVariableDeclaration varDecl, VariableDeclarationStatement varDeclStatement) {
 		
 		//matching variable declaration name
+		var boolean nameCheck
+		if (varDecl.metaName !== null) {
+			//TODO
+			nameCheck = true
+		} else {
+			nameCheck = varDecl.name == (varDeclStatement.fragments.head as VariableDeclarationFragment).name.identifier
+		}
+		
+		//matching variable declaration type
+		var boolean typeCheck
+		if(varDecl.type !== null) {
+			typeCheck = varDeclStatement.type.resolveBinding.qualifiedName == typeReferenceQueue.remove
+		} else {
+			//TODO
+			typeCheck = true
+		}
+		
+		return nameCheck && typeCheck
+	}
+	
+	def private dispatch boolean doMatch(PVariableDeclaration varDecl, FieldDeclaration fieldDecl) {
+		
+		//matching field declaration name
 		var boolean nameCheck
 		if (varDecl.metaName !== null) {
 			//TODO
@@ -240,23 +255,20 @@ class PatternMatcher {
 			nameCheck = varDecl.name == (fieldDecl.fragments.head as VariableDeclarationFragment).name.identifier
 		}
 		
-		//matching variable declaration visibility
+		//matching field declaration visibility
 		var boolean visibilityCheck
-		if(varDecl.visibility.toString != "null") {
-			switch varDecl.visibility {
-				case PUBLIC: visibilityCheck = Modifier.isPublic(fieldDecl.getModifiers())
-				case PRIVATE: visibilityCheck = Modifier.isPrivate(fieldDecl.getModifiers())
-				case PROTECTED: visibilityCheck = Modifier.isProtected(fieldDecl.getModifiers())
-				default: {}
-			}
-		} else {
-			visibilityCheck = true
+		val modifiers = fieldDecl.getModifiers
+		switch varDecl.visibility {
+			case PUBLIC: visibilityCheck = Modifier.isPublic(modifiers)
+			case PRIVATE: visibilityCheck = Modifier.isPrivate(modifiers)
+			case PROTECTED: visibilityCheck = Modifier.isProtected(modifiers)
+			default: visibilityCheck = modifiers.bitwiseAnd(Modifier.PROTECTED) == 0 && modifiers.bitwiseAnd(Modifier.PRIVATE) == 0 && modifiers.bitwiseAnd(Modifier.PUBLIC) == 0
 		}
 		
-		//matching variable declaration type
+		//matching field declaration type
 		var boolean typeCheck
 		if(varDecl.type !== null) {
-			typeCheck = fieldDecl.type.toString == typeReferenceQueue.remove
+			typeCheck = fieldDecl.type.resolveBinding.qualifiedName == typeReferenceQueue.remove
 		} else {
 			//TODO
 			typeCheck = true
@@ -264,6 +276,8 @@ class PatternMatcher {
 		
 		return nameCheck && visibilityCheck && typeCheck
 	}
+	
+	
 	
 	def private dispatch doMatch(PExpression anyOtherPattern, ASTNode anyOtherNode) {
 		false
@@ -284,7 +298,7 @@ class PatternMatcher {
 		
 		val nIt = nodes.iterator
 		for (var int i = 0; i < patterns.size; i++) {
-			if( (patterns.get(i) instanceof PMetaVariable && !(patterns.get(i) as PMetaVariable).multi) || !(patterns.get(i) instanceof PMetaVariable) ) {
+			if( !(patterns.get(i) instanceof PMetaVariable) || !(patterns.get(i) as PMetaVariable).multi ) {
 				if (!doMatch(patterns.get(i), nIt.next)) {
 					return false
 				}

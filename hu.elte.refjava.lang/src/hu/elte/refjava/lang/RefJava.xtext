@@ -39,11 +39,11 @@ SchemeInstanceRule:
 ;
 
 AssignmentList:
-	assignment+=Assignment =>(';' assignment+=Assignment)* ';'?
+	assignment+=MetaVariableAssignment =>(';' assignment+=MetaVariableAssignment)* ';'?
 ;
 
-Assignment:
-	{Assignment} name=(PNameMetaVariable | PTypeMetaVariable | PParameterMetaVariable) '=' value=XExpression
+MetaVariableAssignment:
+	{MetaVariableAssignment} metaVariable=PMetaVariable '=' value=XExpression
 ;
 
 
@@ -69,23 +69,16 @@ CompositeRefactoringRule:
 //////////////
 
 PMetaVariable returns PExpression:
-	{PMetaVariable} '#' name=ID multi?='..'?
+	{PMetaVariable} type=MetaVariableType name=ID multi?='..'?
 ;
 
-PTypeMetaVariable returns PExpression:
-	{PTypeMetaVariable} 'type#' name=ID
+enum MetaVariableType :
+	SIMPLE='#' | NAME='name#' | TYPE='type#' | PARAMETER='parameter#'
 ;
 
-PNameMetaVariable returns PExpression:
-	{PNameMetaVariable} 'name#' name=ID
-;
-
-PParameterMetaVariable returns PExpression:
-	{PParameterMetaVariable} 'parameter#' name=ID multi?='..'?
-;
 
 Pattern:
-	(patterns+=PExpressionOrVarDeclaration =>(';' patterns+=PExpressionOrVarDeclaration)* ';'?) | empty?="-"
+	patterns+=PExpressionOrVarDeclaration =>(';' patterns+=PExpressionOrVarDeclaration)* ';'?
 		// =>: local, distinguishes semicolons
 ;
 
@@ -97,7 +90,7 @@ PExpressionOrVarDeclaration returns PExpression:
 PDeclaration returns PExpression:
 	PVariableDeclaration (
 		{PMethodDeclaration.prefix=current} '(' (
-			arguments+=FullJvmFormalParameter (',' arguments+=FullJvmFormalParameter)* | metaArguments=PParameterMetaVariable
+			arguments+=FullJvmFormalParameter (',' arguments+=FullJvmFormalParameter)* | metaArguments=PMetaVariable
 		)? ')' (body=PBlockExpression)
 	)?
 ;
@@ -105,28 +98,25 @@ PDeclaration returns PExpression:
 PVariableDeclaration returns PVariableDeclaration:
 	=>({PVariableDeclaration} ( // =>: global, see PExpressionOrVarDeclaration->...->PFeatureCall
 		(visibility=Visibility | metaVisibility=PMetaVariable)? // for methods
-		(type=JvmTypeReference | metaType=PTypeMetaVariable)
-		(name=ValidID | metaName=PNameMetaVariable)
+		(type=JvmTypeReference | metaType=PMetaVariable)
+		(name=ValidID | metaName=PMetaVariable) 
 	)) ('=' right=PExpression)? 
 ;
 
 enum Visibility:
-	NULL='null' | PACKAGE='package' | PUBLIC='public' | PRIVATE='private' | PROTECTED='protected'
+	PACKAGE='package' | PUBLIC='public' | PRIVATE='private' | PROTECTED='protected'
 ;
 
 PExpression returns PExpression:
 	PMemberFeatureCall
 ;
 
-PLambdaExpression returns PExpression:
-	{PLambdaExpression} 'lambda' expression=PMemberFeatureCall
-;
 
 PMemberFeatureCall returns PExpression:
 	PPrimaryExpression (
 		=>({PMemberFeatureCall.memberCallTarget=current} ".")
-		(feature=IdOrSuper | metaFeature=PNameMetaVariable) (
-			=>'(' memberCallArguments=PParameterMetaVariable? ')' 
+		(feature=IdOrSuper | metaFeature=PMetaVariable) (
+			=>'(' memberCallArguments=PMetaVariable? ')'
 		)?
 	)*
 ;
@@ -137,17 +127,13 @@ PPrimaryExpression returns PExpression
 	| PFeatureCall
 	| PReturnExpression
 	| PTargetExpression
-	| PLambdaExpression
 	| PNothingExpression
 	| PMetaVariable
-	| PTypeMetaVariable
-	| PNameMetaVariable
-	| PParameterMetaVariable
 		// no explicit metavariables here to preserve structure
 ;
 
 PConstructorCall returns PExpression:
-	{PConstructorCall} 'new' (name=ValidID | metaName=PNameMetaVariable) //constructor=[types::JvmConstructor|QualifiedName]
+	{PConstructorCall} 'new' (name=ValidID | metaName=PMetaVariable) //constructor=[types::JvmConstructor|QualifiedName] 
 	=>'(' (arguments+=PExpression (',' arguments+=PExpression)*)? ')' (
 		anonInstance?='{' (elements+=PDeclaration =>(';' elements+=PDeclaration)* ';'?)? '}'
 			// =>: local, distinguishes semicolons

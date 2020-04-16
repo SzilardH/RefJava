@@ -6,9 +6,6 @@ import hu.elte.refjava.api.ClassRefactoring
 import hu.elte.refjava.api.LambdaRefactoring
 import hu.elte.refjava.api.LocalRefactoring
 import hu.elte.refjava.api.patterns.Utils
-import hu.elte.refjava.lang.refJava.PNameMetaVariable
-import hu.elte.refjava.lang.refJava.PParameterMetaVariable
-import hu.elte.refjava.lang.refJava.PTypeMetaVariable
 import hu.elte.refjava.lang.refJava.SchemeInstanceRule
 import hu.elte.refjava.lang.refJava.SchemeType
 import java.lang.reflect.Type
@@ -19,6 +16,8 @@ import org.eclipse.xtext.serializer.ISerializer
 import org.eclipse.xtext.xbase.jvmmodel.AbstractModelInferrer
 import org.eclipse.xtext.xbase.jvmmodel.IJvmDeclaredTypeAcceptor
 import org.eclipse.xtext.xbase.jvmmodel.JvmTypesBuilder
+import hu.elte.refjava.lang.refJava.PMetaVariable
+import hu.elte.refjava.lang.refJava.MetaVariableType
 
 class RefJavaJvmModelInferrer extends AbstractModelInferrer {
 
@@ -65,38 +64,37 @@ class RefJavaJvmModelInferrer extends AbstractModelInferrer {
 			var String callings = ""
 			if(rule.assignment !== null) {
  				for (assignment : rule.assignment.assignment) {
-					if (assignment.name instanceof PNameMetaVariable) {
-						val name = (assignment.name as PNameMetaVariable).name
-						members += rule.toMethod("valueof_name_" + name, typeof(String).typeRef) [
+ 					val metaVar = assignment.metaVariable as PMetaVariable
+ 					val metaVarName = (assignment.metaVariable as PMetaVariable).name
+					if (metaVar.type == MetaVariableType.NAME) {
+						members += rule.toMethod("valueof_name_" + metaVarName, typeof(String).typeRef) [
 							visibility = JvmVisibility.PRIVATE
 							body = assignment.value
 						]
-						callings = callings + "set_name_" + name + "();" + endl
-						members += rule.toMethod("set_name_" + name, typeof(void).typeRef) [
+						callings = callings + "set_name_" + metaVarName + "();" + endl
+						members += rule.toMethod("set_name_" + metaVarName, typeof(void).typeRef) [
 							visibility = JvmVisibility.PRIVATE
-							body = '''nameBindings.put("«name»", valueof_name_«name»());'''
+							body = '''nameBindings.put("«metaVarName»", valueof_name_«metaVarName»());'''
 						]
-					} else if (assignment.name instanceof PTypeMetaVariable) {
-						val name = (assignment.name as PTypeMetaVariable).name
-						members += rule.toMethod("valueof_type_" + name, typeof(Type).typeRef) [
+					} else if (metaVar.type == MetaVariableType.TYPE) {
+						members += rule.toMethod("valueof_type_" + metaVarName, typeof(Type).typeRef) [
 							visibility = JvmVisibility.PRIVATE
 							body = assignment.value
 						]
-						callings = callings + "set_type_" + name + "();" + endl
-						members += rule.toMethod("set_type_" + name, typeof(void).typeRef) [
+						callings = callings + "set_type_" + metaVarName + "();" + endl
+						members += rule.toMethod("set_type_" + metaVarName, typeof(void).typeRef) [
 							visibility = JvmVisibility.PRIVATE
-							body = '''typeBindings.put("«name»", valueof_type_«name»());'''
+							body = '''typeBindings.put("«metaVarName»", valueof_type_«metaVarName»());'''
 						]
-					} else if (assignment.name instanceof PParameterMetaVariable) {
-						val name = (assignment.name as PParameterMetaVariable).name
-						members += rule.toMethod("valueof_parameter_" + name, typeof(List).typeRef) [
+					} else if (metaVar.type == MetaVariableType.PARAMETER) {
+						members += rule.toMethod("valueof_parameter_" + metaVarName, typeof(List).typeRef) [
 							visibility = JvmVisibility.PRIVATE
 							body = assignment.value
 						]
-						callings = callings + "set_parameter_" + name + "();" + endl
-						members += rule.toMethod("set_parameter_" + name, typeof(void).typeRef) [
+						callings = callings + "set_parameter_" + metaVarName + "();" + endl
+						members += rule.toMethod("set_parameter_" + metaVarName, typeof(void).typeRef) [
 							visibility = JvmVisibility.PRIVATE
-							body = '''parameterBindings.put("«name»", valueof_parameter_«name»());'''
+							body = '''parameterBindings.put("«metaVarName»", valueof_parameter_«metaVarName»());'''
 						]
 					}
 				}
@@ -144,10 +142,10 @@ super.definitionTypeReferenceString = "«definitionTypeReferenceString»";'''
 
 	def private toSuperType(SchemeType it) {
 		switch it {
-			case LOCAL : return LocalRefactoring
-			case BLOCK : return BlockRefactoring
-			case LAMBDA : return LambdaRefactoring
-			case CLASS : return ClassRefactoring
+			case LOCAL : LocalRefactoring
+			case BLOCK : BlockRefactoring
+			case LAMBDA : LambdaRefactoring
+			case CLASS : ClassRefactoring
 		}
 	}
 

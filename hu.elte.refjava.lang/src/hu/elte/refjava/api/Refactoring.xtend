@@ -4,9 +4,16 @@ import java.util.List
 import org.eclipse.jdt.core.dom.ASTNode
 import org.eclipse.jface.text.IDocument
 import org.eclipse.jdt.core.dom.TypeDeclaration
+import java.util.Map
+import java.lang.reflect.Type
 
 interface Refactoring {
-
+	
+	val Map<String, List<? extends ASTNode>> bindings = newHashMap
+	val Map<String, String> nameBindings = newHashMap
+	val Map<String, Type> typeBindings = newHashMap
+	val Map<String, List<Pair<Type, String>>> parameterBindings = newHashMap
+	
 	enum Status {
 		SUCCESS,
 		MATCH_FAILED,

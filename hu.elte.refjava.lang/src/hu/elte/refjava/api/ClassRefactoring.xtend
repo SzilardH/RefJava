@@ -4,21 +4,21 @@ import hu.elte.refjava.api.patterns.ASTBuilder
 import hu.elte.refjava.api.patterns.PatternMatcher
 import hu.elte.refjava.api.patterns.PatternParser
 import hu.elte.refjava.api.patterns.Utils
-import java.lang.reflect.Type
+import hu.elte.refjava.lang.refJava.PMethodDeclaration
 import java.util.List
-import java.util.Map
 import org.eclipse.jdt.core.ICompilationUnit
+import org.eclipse.jdt.core.dom.AST
 import org.eclipse.jdt.core.dom.ASTNode
+import org.eclipse.jdt.core.dom.ASTParser
+import org.eclipse.jdt.core.dom.CompilationUnit
 import org.eclipse.jdt.core.dom.FieldDeclaration
 import org.eclipse.jdt.core.dom.MethodDeclaration
 import org.eclipse.jdt.core.dom.TypeDeclaration
 import org.eclipse.jdt.core.dom.VariableDeclarationFragment
-import org.eclipse.jface.text.IDocument
-import org.eclipse.jdt.core.dom.ASTParser
-import org.eclipse.jdt.core.dom.CompilationUnit
-import org.eclipse.jdt.core.dom.AST
-import org.eclipse.jface.text.IRewriteTarget
 import org.eclipse.jface.text.Document
+import org.eclipse.jface.text.IDocument
+
+import static hu.elte.refjava.api.Check.*
 
 class ClassRefactoring implements Refactoring {
 	
@@ -26,28 +26,39 @@ class ClassRefactoring implements Refactoring {
 	List<TypeDeclaration> typeDeclList
 	IDocument document
 	
-	
 	val PatternMatcher matcher
 	val ASTBuilder builder
 	val String matchingString
 	val String replacementString
+	val RefactoringType refactoringType
 	protected String targetString
 	protected String definitionString
-	protected val Map<String, List<? extends ASTNode>> bindings = newHashMap
-	protected val Map<String, String> nameBindings = newHashMap
-	protected val Map<String, Type> typeBindings = newHashMap
-	protected val Map<String, List<Pair<Type, String>>> parameterBindings = newHashMap
 	protected String matchingTypeReferenceString
 	protected String replacementTypeReferenceString
 	protected String targetTypeReferenceString
 	protected String definitionTypeReferenceString
 	List<ASTNode> replacement
 
+	enum RefactoringType {
+		NEW_METHOD,
+		METHOD_LIFT,
+		FIELD_LIFT
+	}
+	
 	protected new(String matchingPatternString, String replacementPatternString) {
 		matcher = new PatternMatcher(PatternParser.parse(matchingPatternString))
 		builder = new ASTBuilder(PatternParser.parse(replacementPatternString))
 		this.matchingString = matchingPatternString
 		this.replacementString = replacementPatternString
+		this.refactoringType = if(replacementPatternString != "nothing") {
+			RefactoringType.NEW_METHOD
+		} else {
+			if(PatternParser.parse(matchingPatternString).patterns.head instanceof PMethodDeclaration) {
+				RefactoringType.METHOD_LIFT
+			} else {
+				RefactoringType.FIELD_LIFT
+			}
+		}
 	}
 	
 	override init(List<? extends ASTNode> target, IDocument document, List<TypeDeclaration> allTypeDeclInWorkspace) {
@@ -124,26 +135,99 @@ class ClassRefactoring implements Refactoring {
 	}
 
 	def protected check() {
-		//TODO
-		if(replacementString != "-") {
-			//return Check.isUniqueMethodIn(target, Check.enclosingClass(target))
+		
+		Check.allTypeDeclarationInWorkSpace = typeDeclList
+		
+		if (replacementString == "nothing" && definitionString == "target" && matchingString == "target") {
+			definitionString = targetString
+			definitionTypeReferenceString = targetTypeReferenceString
+		} else if (replacementString == "nothing" && definitionString == "target" && matchingString != "target") {
+			definitionString = matchingString
+			definitionTypeReferenceString = matchingTypeReferenceString
+		}
+		
+		if(refactoringType == RefactoringType.NEW_METHOD) {
 			
-			return true
+			val compUnit = Utils.getCompilationUnit(target.head)
+			val iCompUnit = compUnit.getJavaElement() as ICompilationUnit
 			
+			val parser = ASTParser.newParser(AST.JLS12);
+			parser.resolveBindings = true
+			parser.source = iCompUnit;
+			val newCompUnit = parser.createAST(null) as CompilationUnit;
+			newCompUnit.recordModifications
+			
+			val definitionPattern = PatternParser.parse(definitionString)
+			val newMethod = builder.build(definitionPattern, newCompUnit.AST, bindings, nameBindings, typeBindings, parameterBindings, definitionTypeReferenceString).head
+
+			val targetClass = newCompUnit.types.findFirst[(it as TypeDeclaration).resolveBinding.qualifiedName == Utils.getTypeDeclaration(target.head).resolveBinding.qualifiedName ] as TypeDeclaration
+			targetClass.bodyDeclarations.add(newMethod)
+
+			val edits2 = newCompUnit.rewrite(document, iCompUnit.javaProject.getOptions(true))
+			edits2.apply(document)
+			val newSource = document.get;	
+			iCompUnit.getBuffer().setContents(newSource);
+			
+			val parser2 = ASTParser.newParser(AST.JLS12);
+			parser2.resolveBindings = true
+			parser2.source = iCompUnit
+			val newCompUnit2 = parser2.createAST(null) as CompilationUnit;
+			
+			val targetClass2 = newCompUnit2.types.findFirst[(it as TypeDeclaration).resolveBinding.qualifiedName == Utils.getTypeDeclaration(target.head).resolveBinding.qualifiedName] as TypeDeclaration
+			val newMethodInClass = targetClass2.bodyDeclarations.findFirst[it instanceof MethodDeclaration && (it as MethodDeclaration).name.identifier == (newMethod as MethodDeclaration).name.identifier] as MethodDeclaration
+			
+			val List<ASTNode> definition = newArrayList
+			definition.add(newMethodInClass)
+			
+			val safeCheck = Check.isUniqueMethodIn(Check.getMethodName(definition), Check.parameters(definition), Check.enclosingClass(target))
+				&& if(Check.isOverrideIn(Check.getMethodName(definition), Check.parameters(definition), Check.enclosingClass(target))) {
+					!Check.isLessVisible(Check.visibility(definition), Check.visibility(Check.overridenMethodFrom(Check.getMethodName(definition), Check.parameters(definition), Check.enclosingClass(target))))
+					&& Check.isSubTypeOf(Check.type(definition), Check.type(Check.overridenMethodFrom(Check.getMethodName(definition), Check.parameters(definition), Check.enclosingClass(target))))
+					&& Check.visibility(Check.overridenMethodFrom(Check.getMethodName(definition), Check.parameters(definition), Check.enclosingClass(target))) != "public" 
+					&& Check.publicReferences(Check.getMethodName(definition), Check.parameters(definition), Check.enclosingClass(target)).empty
+					&& false
+				} else {
+					true
+				}
+				
+			newCompUnit2.recordModifications
+			targetClass2.bodyDeclarations.remove(newMethodInClass)
+			
+			val edits3 = newCompUnit2.rewrite(document, iCompUnit.javaProject.getOptions(true))
+			edits3.apply(document)
+			val newSource2 = document.get;	
+			iCompUnit.getBuffer().setContents(newSource2);
+			
+			return safeCheck
 			
 		} else {
-			if(target.head instanceof MethodDeclaration) {
+			if(refactoringType == RefactoringType.METHOD_LIFT) {
+				
 				return Check.hasSuperClass(Check.enclosingClass(target))
 					&& if (Check.isPrivate(target)) Check.references(target, Check.enclosingClass(target)).empty else true
 					&& Check.accessedFieldsOfEnclosingClass(target, Check.enclosingClass(target)).empty
 					&& Check.accessedMethodsOfEnclosingClass(target, Check.enclosingClass(target)).empty
-				//	&& Check.isUniqueMethodIn(target, Check.superClass(Check.enclosingClass(target)))
+					&& Check.isUniqueMethodIn(Check.getMethodName(target), Check.parameters(target), Check.superClass(Check.enclosingClass(target)))
+					&& if(Check.isOverrideIn(Check.getMethodName(target), Check.parameters(target), Check.superClass(Check.enclosingClass(target)))) {
+						!Check.isLessVisible(Check.visibility(target), Check.visibility(Check.overridenMethodFrom(Check.getMethodName(target), Check.parameters(target), Check.superClass(Check.enclosingClass(target))))) 
+						&& Check.isSubTypeOf(Check.type(target), Check.type(Check.overridenMethodFrom(Check.getMethodName(target), Check.parameters(target), Check.superClass(Check.enclosingClass(target)))))
+						&& Check.visibility(Check.overridenMethodFrom(Check.getMethodName(target), Check.parameters(target), Check.superClass(Check.enclosingClass(target)))) != "public" 
+						&& Check.publicReferences(Check.getMethodName(target), Check.parameters(target), Check.superClass(Check.enclosingClass(target))).empty
+						
+						
+						} else {
+							true
+						}
+						//TODO
 					
+			} else if (refactoringType == RefactoringType.FIELD_LIFT) {
 				
-			} else if (target.head instanceof FieldDeclaration) {
 				return Check.hasSuperClass(Check.enclosingClass(target))
 					&& if (Check.isPrivate(target)) Check.references(target, Check.enclosingClass(target)).empty else true
-				//	&& Check.isUniqueFieldIn(target, Check.superClass(Check.enclosingClass(target)))
+					&& Check.isUniqueFieldIn(Check.getFragmentNames(target), Check.superClass(Check.enclosingClass(target)))
+					&& Check.publicReferences(Check.getFragmentNames(target), Check.superClass(Check.enclosingClass(target))).empty
+					&& Check.privateReferences(Check.getFragmentNames(target), Check.superClass(Check.enclosingClass(target))).forall [
+						Check.isSubTypeOf(Check.type(target), Check.referredField(it).type) ]
 			}
 			return false
 		}
@@ -151,8 +235,9 @@ class ClassRefactoring implements Refactoring {
 
 	def private safeBuild() {
 		try {
-			if(replacementString != "-") {
-				replacement = builder.build(target.head.AST, bindings, nameBindings, typeBindings, parameterBindings, replacementTypeReferenceString)
+			if(refactoringType == RefactoringType.NEW_METHOD) {
+				val replacementPattern = PatternParser.parse(replacementString)
+				replacement = builder.build(replacementPattern, target.head.AST, bindings, nameBindings, typeBindings, parameterBindings, definitionTypeReferenceString)
 			}
 		} catch (Exception e) {
 			println(e)
@@ -163,9 +248,8 @@ class ClassRefactoring implements Refactoring {
 
 	def private safeReplace() {
 		try {
-			
 			//we only need to replace if we creating a new method
-			if (replacement !== null) {
+			if (refactoringType == RefactoringType.NEW_METHOD) {
 				val rewrite = builder.rewrite
 				target.tail.forEach[rewrite.remove(it, null)]
 			
@@ -179,18 +263,11 @@ class ClassRefactoring implements Refactoring {
 			val targetICompUnit = compUnit.getJavaElement() as ICompilationUnit
 			
 			val parser = ASTParser.newParser(AST.JLS12);
+			parser.resolveBindings = true
 			parser.source = targetICompUnit;
 			val targetCompUnit = parser.createAST(null) as CompilationUnit;
 			
 			targetCompUnit.recordModifications
-			
-			if (replacementString == "-" && definitionString == "target" && matchingString == "target") {
-				definitionString = targetString
-				definitionTypeReferenceString = targetTypeReferenceString
-			} else if (replacementString == "-" && definitionString == "target" && matchingString != "target") {
-				definitionString = matchingString
-				definitionTypeReferenceString = matchingTypeReferenceString
-			}
 			
 			val definitionPattern = PatternParser.parse(definitionString)
 			var objectToInsertOrMove = builder.build(definitionPattern, targetCompUnit.AST, bindings, nameBindings, typeBindings, parameterBindings, definitionTypeReferenceString).head
@@ -199,16 +276,22 @@ class ClassRefactoring implements Refactoring {
 			val targetClass = targetCompUnit.types.findFirst[ (it as TypeDeclaration).name.identifier == targetTypeDeclaration.name.identifier ] as TypeDeclaration
 			
 			var CompilationUnit superCompUnit
-			var ICompilationUnit superICompUnit
+			var ICompilationUnit superICompUnit = null
 			
-			if(replacement !== null) {
+			if(refactoringType == RefactoringType.NEW_METHOD) {
 				targetClass.bodyDeclarations.add(objectToInsertOrMove)
 			} else {
 				val superClassType = targetTypeDeclaration.superclassType
-				
+				val superClassTypeBinding = superClassType.resolveBinding
 				
 				//needs work
-				var superClass = typeDeclList.findFirst[ (it as TypeDeclaration).name.identifier == superClassType.toString] as TypeDeclaration
+				var TypeDeclaration superClass
+				for(t : typeDeclList) {
+					if (t.resolveBinding.toString == superClassTypeBinding.toString) {
+						superClass = t
+					}
+				}
+				
 				val compUnit2 = Utils.getCompilationUnit(superClass)
 				superICompUnit = compUnit2.getJavaElement() as ICompilationUnit
 				
@@ -223,9 +306,9 @@ class ClassRefactoring implements Refactoring {
 				}
 				
 				var Object methodOrFieldToDelete
-				if(target.head instanceof MethodDeclaration){
+				if(refactoringType == RefactoringType.METHOD_LIFT){
 					methodOrFieldToDelete = targetClass.bodyDeclarations.findFirst[ it instanceof MethodDeclaration && (it as MethodDeclaration).name.identifier == (target.head as MethodDeclaration).name.identifier ]
-				} else if (target.head instanceof FieldDeclaration) {
+				} else if (refactoringType == RefactoringType.FIELD_LIFT) {
 					methodOrFieldToDelete = targetClass.bodyDeclarations.findFirst[ it instanceof FieldDeclaration && ((it as FieldDeclaration).fragments.head as VariableDeclarationFragment).name.identifier == ((target.head as FieldDeclaration).fragments.head as VariableDeclarationFragment).name.identifier ]
 				}
 				
@@ -238,14 +321,14 @@ class ClassRefactoring implements Refactoring {
 			val newSource = document.get;	
 			targetICompUnit.getBuffer().setContents(newSource);
 			
-			if(superICompUnit != targetICompUnit) {
+			
+			if(superICompUnit !== null && superICompUnit != targetICompUnit) {
 				val superDocument = new Document(superICompUnit.source)
 				val edits3 = superCompUnit.rewrite(superDocument, superICompUnit.javaProject.getOptions(true))
 				edits3.apply(superDocument)
 				val superSource = superDocument.get
 				superICompUnit.getBuffer().setContents(superSource)
 			}
-			
 		} catch (Exception e) {
 			println(e)
 			return false

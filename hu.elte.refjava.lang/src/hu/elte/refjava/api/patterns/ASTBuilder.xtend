@@ -1,17 +1,15 @@
 package hu.elte.refjava.api.patterns
 
+import hu.elte.refjava.api.Check
 import hu.elte.refjava.lang.refJava.PBlockExpression
 import hu.elte.refjava.lang.refJava.PConstructorCall
 import hu.elte.refjava.lang.refJava.PExpression
 import hu.elte.refjava.lang.refJava.PFeatureCall
-import hu.elte.refjava.lang.refJava.PLambdaExpression
 import hu.elte.refjava.lang.refJava.PMemberFeatureCall
 import hu.elte.refjava.lang.refJava.PMetaVariable
 import hu.elte.refjava.lang.refJava.PMethodDeclaration
-import hu.elte.refjava.lang.refJava.PNameMetaVariable
-import hu.elte.refjava.lang.refJava.PParameterMetaVariable
+import hu.elte.refjava.lang.refJava.PNothingExpression
 import hu.elte.refjava.lang.refJava.PTargetExpression
-import hu.elte.refjava.lang.refJava.PTypeMetaVariable
 import hu.elte.refjava.lang.refJava.PVariableDeclaration
 import hu.elte.refjava.lang.refJava.Pattern
 import java.lang.reflect.Type
@@ -49,12 +47,21 @@ class ASTBuilder {
 		build(ast, bindings, nameBindings, typeBindings, parameterBindings, typeRefString)
 	}
 	
-	def buildNewInterface(PLambdaExpression lambdaExpr, AST ast, Map<String, List<? extends ASTNode>> bindings, Map<String, String> nameBindings, Map<String, Type> typeBindings, Map<String, List<Pair<Type, String>>> parameterBindings, String typeRefString){
+	def buildNewInterface(PMemberFeatureCall lambdaExpr, AST ast, Map<String, List<? extends ASTNode>> bindings, Map<String, String> nameBindings, Map<String, Type> typeBindings, Map<String, List<Pair<Type, String>>> parameterBindings, String typeRefString){
 		this.ast = ast
+		this.bindings = bindings
+		this.nameBindings = nameBindings
+		this.typeBindings = typeBindings
+		this.parameterBindings = parameterBindings
 		
 		val newInterface = ast.newTypeDeclaration
 		newInterface.interface = true
-		newInterface.name.identifier = "test"
+		
+		if((lambdaExpr.memberCallTarget as PConstructorCall).metaName !== null) {
+			newInterface.name.identifier = Check.generateNewName()
+		} else {
+			newInterface.name.identifier = (lambdaExpr.memberCallTarget as PConstructorCall).name
+		}
 		
 		if(typeRefString !== null) {
 			val tmp = typeRefString.split("\\|")
@@ -62,7 +69,7 @@ class ASTBuilder {
 			this.typeReferenceQueue.addAll(tmp)
 		}
 		
-		val lambdaExpressionBody = ((lambdaExpr.expression as PMemberFeatureCall).memberCallTarget as PConstructorCall).elements
+		val lambdaExpressionBody = (lambdaExpr.memberCallTarget as PConstructorCall).elements
 		val newInterfaceBodyDeclarations = lambdaExpressionBody.doBuildPatterns
 		
 		newInterfaceBodyDeclarations.forEach[
@@ -74,6 +81,7 @@ class ASTBuilder {
 		newInterface.bodyDeclarations.addAll(newInterfaceBodyDeclarations)
 		return newInterface
 	}
+
 
 	def build(AST ast, Map<String, List<? extends ASTNode>> bindings, Map<String, String> nameBindings, Map<String, Type> typeBindings, Map<String, List<Pair<Type, String>>> parameterBindings, String typeRefString) {
 		this.ast = ast
@@ -89,12 +97,11 @@ class ASTBuilder {
 			this.typeReferenceQueue.addAll(tmp)
 		}
 		
-		if(pattern.empty) {
+		if(pattern instanceof PNothingExpression) {
 			return null
 		} else {
 			return pattern.patterns.doBuildPatterns
 		}
-		
 	}
 
 	//meta variable builder
@@ -121,7 +128,7 @@ class ASTBuilder {
 		
 		//adding constructor call name
 		if (constCall.metaName !== null) {
-			val name = (constCall.metaName as PNameMetaVariable).name
+			val name = (constCall.metaName as PMetaVariable).name
 			class.type = ast.newSimpleType(ast.newName(nameBindings.get(name) ) )
 		} else {
 			class.type = ast.newSimpleType(ast.newName(constCall.name) )
@@ -146,30 +153,28 @@ class ASTBuilder {
 		
 		//adding method name
 		if (methodDecl.prefix.metaName !== null) {
-			val name = (methodDecl.prefix.metaName as PNameMetaVariable).name
+			val name = (methodDecl.prefix.metaName as PMetaVariable).name
 			method.name.identifier = nameBindings.get(name)
 		} else {
 			method.name.identifier = methodDecl.prefix.name
 		}
 		
 		//adding method visibility
-		if(methodDecl.prefix.visibility !== null) {
-			switch methodDecl.prefix.visibility {
-				case PUBLIC: method.modifiers().add(ast.newModifier(ModifierKeyword.PUBLIC_KEYWORD))
-				case PRIVATE: method.modifiers().add(ast.newModifier(ModifierKeyword.PRIVATE_KEYWORD))
-				case PROTECTED: method.modifiers().add(ast.newModifier(ModifierKeyword.PROTECTED_KEYWORD))
-				default: {}
-			}
+		switch methodDecl.prefix.visibility {
+			case PUBLIC: method.modifiers().add(ast.newModifier(ModifierKeyword.PUBLIC_KEYWORD))
+			case PRIVATE: method.modifiers().add(ast.newModifier(ModifierKeyword.PRIVATE_KEYWORD))
+			case PROTECTED: method.modifiers().add(ast.newModifier(ModifierKeyword.PROTECTED_KEYWORD))
+			default: {}
 		}
-
+		
 		//adding method return type
 		if(methodDecl.prefix.type !== null) {
 			method.returnType2 = Utils.getTypeFromId(typeReferenceQueue.remove, ast)
 		} else {
-			val name = (methodDecl.prefix.metaType as PTypeMetaVariable).name
+			val name = (methodDecl.prefix.metaType as PMetaVariable).name
 			method.returnType2 = Utils.getTypeFromId(typeBindings.get(name).typeName, ast)
 		}
-
+		
 		//adding method parameters
 		if (methodDecl.arguments.size > 0) {
 			for(argument : methodDecl.arguments) {
@@ -181,7 +186,7 @@ class ASTBuilder {
 				method.parameters.add(methodParameterDeclaration)
 			}
 		} else if (methodDecl.metaArguments !== null) {
-			val parameterList = parameterBindings.get((methodDecl.metaArguments as PParameterMetaVariable).name)
+			val parameterList = parameterBindings.get((methodDecl.metaArguments as PMetaVariable).name)
 			for (parameter : parameterList) {
 				val methodParameterDeclaration = ast.newSingleVariableDeclaration
 				methodParameterDeclaration.type = Utils.getTypeFromId(parameter.key.toString, ast)
@@ -212,43 +217,37 @@ class ASTBuilder {
 		return method
 	}
 	
-	//variable declaration builder
+	//field declaration builder
 	def private dispatch doBuild(PVariableDeclaration varDecl) {
 		val fragment = ast.newVariableDeclarationFragment
 		
 		//adding variable name
 		if(varDecl.metaName !== null) {
-			fragment.name.identifier = nameBindings.get( (varDecl.metaName as PNameMetaVariable).name )
+			fragment.name.identifier = nameBindings.get( (varDecl.metaName as PMetaVariable).name )
 		} else {
 			fragment.name.identifier = varDecl.name
 		}
 		
 		val newVar = ast.newFieldDeclaration(fragment)
 		
+		
 		//adding variable visibility
-		if(varDecl.visibility !== null) {
-			switch varDecl.visibility {
-				case PUBLIC: newVar.modifiers().add(ast.newModifier(ModifierKeyword.PUBLIC_KEYWORD))
-				case PRIVATE: newVar.modifiers().add(ast.newModifier(ModifierKeyword.PRIVATE_KEYWORD))
-				case PROTECTED: newVar.modifiers().add(ast.newModifier(ModifierKeyword.PROTECTED_KEYWORD))
-				default: {}
-			}
+		switch varDecl.visibility {
+			case PUBLIC: newVar.modifiers().add(ast.newModifier(ModifierKeyword.PUBLIC_KEYWORD))
+			case PRIVATE: newVar.modifiers().add(ast.newModifier(ModifierKeyword.PRIVATE_KEYWORD))
+			case PROTECTED: newVar.modifiers().add(ast.newModifier(ModifierKeyword.PROTECTED_KEYWORD))
+			default: {}
 		}
 		
 		//adding variable type
 		if(varDecl.type !== null) {
 			newVar.type = Utils.getTypeFromId(typeReferenceQueue.remove, ast)
 		} else {
-			val name = (varDecl.metaType as PTypeMetaVariable).name
+			val name = (varDecl.metaType as PMetaVariable).name
 			newVar.type = Utils.getTypeFromId(typeBindings.get(name).typeName, ast)
 		}
 
 		return newVar
-	}
-	
-	//lambda expression builder
-	def private dispatch ASTNode doBuild(PLambdaExpression lambdaExpr) {
-		return doBuild(lambdaExpr.expression)
 	}
 	
 	//method invocation (with expression) builder
@@ -259,13 +258,13 @@ class ASTBuilder {
 		if (featureCall.feature !== null) {
 			methodInv.name.identifier = featureCall.feature
 		} else {
-			val name = (featureCall.metaFeature as PNameMetaVariable).name
+			val name = (featureCall.metaFeature as PMetaVariable).name
 			methodInv.name.identifier = nameBindings.get(name)
 		}
 		
 		//adding method invocation parameters
 		if(featureCall.memberCallArguments !== null) {
-			val parameterList = parameterBindings.get((featureCall.memberCallArguments as PParameterMetaVariable).name)
+			val parameterList = parameterBindings.get((featureCall.memberCallArguments as PMetaVariable).name)
 			for (parameter : parameterList) {
 				methodInv.arguments.add(ast.newSimpleName(parameter.value))
 			}

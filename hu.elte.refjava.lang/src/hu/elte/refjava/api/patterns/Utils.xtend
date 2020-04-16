@@ -2,12 +2,16 @@ package hu.elte.refjava.api.patterns
 
 import hu.elte.refjava.lang.refJava.Pattern
 import org.eclipse.jdt.core.dom.AST
+import org.eclipse.jdt.core.dom.ASTNode
+import org.eclipse.jdt.core.dom.CompilationUnit
+import org.eclipse.jdt.core.dom.FieldDeclaration
+import org.eclipse.jdt.core.dom.MethodDeclaration
 import org.eclipse.jdt.core.dom.PrimitiveType
+import org.eclipse.jdt.core.dom.TypeDeclaration
+import org.eclipse.jdt.core.dom.VariableDeclarationStatement
 import org.eclipse.xtext.EcoreUtil2
 import org.eclipse.xtext.common.types.JvmTypeReference
-import org.eclipse.jdt.core.dom.ASTNode
-import org.eclipse.jdt.core.dom.TypeDeclaration
-import org.eclipse.jdt.core.dom.CompilationUnit
+import org.eclipse.jdt.core.ICompilationUnit
 
 class Utils {
 	
@@ -41,18 +45,20 @@ class Utils {
 			}
 		} else {
 			//simple type
-			val simpleName = id.split("\\.")
-			return ast.newSimpleType(ast.newSimpleName(simpleName.last))
+			val simpleName = id.split("\\.").last
+			return ast.newSimpleType(ast.newSimpleName(simpleName))
 		}
 	}
+
+	
 	
 	def static getTypeReferenceString(Pattern pattern) {
-		var String typeypeReferenceString = ""
+		var String typeReferenceString = ""
 		val types = EcoreUtil2.getAllContentsOfType(pattern, JvmTypeReference)
 		for(type : types) {
-			typeypeReferenceString = typeypeReferenceString + type.identifier + "|"
+			typeReferenceString = typeReferenceString + type.identifier + "|"
 		}
-		return typeypeReferenceString
+		return typeReferenceString
 	}
 	
 	def static getTypeDeclaration(ASTNode node) {
@@ -70,5 +76,30 @@ class Utils {
 		}
 		tmp as CompilationUnit
 	}
+	
+	def static getMethodDeclaration(ASTNode node) {
+		var tmp = node
+			while (!(tmp instanceof MethodDeclaration) && tmp !== null) {
+				tmp = tmp.parent
+		}
+		tmp as MethodDeclaration
+	}
+	
+	def static getFieldDeclaration(ASTNode node) {
+		var tmp = node
+			while (!(tmp instanceof FieldDeclaration) && tmp !== null) {
+				tmp = tmp.parent
+		}
+		tmp as FieldDeclaration
+	}
+	
+	def static getVariableDeclaration(ASTNode node) {
+		var tmp = node
+			while (!(tmp instanceof VariableDeclarationStatement) && tmp !== null) {
+				tmp = tmp.parent
+		}
+		tmp as VariableDeclarationStatement
+	}
+	
 	
 }

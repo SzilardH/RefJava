@@ -3,12 +3,10 @@ package hu.elte.refjava.api
 import hu.elte.refjava.api.patterns.ASTBuilder
 import hu.elte.refjava.api.patterns.PatternMatcher
 import hu.elte.refjava.api.patterns.PatternParser
-import java.lang.reflect.Type
 import java.util.List
-import java.util.Map
 import org.eclipse.jdt.core.dom.ASTNode
-import org.eclipse.jface.text.IDocument
 import org.eclipse.jdt.core.dom.TypeDeclaration
+import org.eclipse.jface.text.IDocument
 
 class LocalRefactoring implements Refactoring {
 
@@ -17,10 +15,6 @@ class LocalRefactoring implements Refactoring {
 
 	val PatternMatcher matcher
 	val ASTBuilder builder
-	protected val Map<String, List<? extends ASTNode>> bindings = newHashMap
-	protected val Map<String, String> nameBindings = newHashMap
-	protected val Map<String, Type> typeBindings = newHashMap
-	protected val Map<String, List<Pair<Type, String>>> parameterBindings = newHashMap
 	protected String matchingTypeReferenceString
 	protected String replacementTypeReferenceString
 	protected String targetTypeReferenceString
