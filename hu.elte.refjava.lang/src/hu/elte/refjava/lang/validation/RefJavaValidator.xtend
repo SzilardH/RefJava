@@ -13,9 +13,17 @@ import org.eclipse.xtext.EcoreUtil2
 import org.eclipse.xtext.validation.Check
 
 import static hu.elte.refjava.lang.refJava.RefJavaPackage.Literals.*
+import hu.elte.refjava.lang.refJava.SchemeType
+import hu.elte.refjava.lang.refJava.PNothingExpression
+import hu.elte.refjava.lang.refJava.PFeatureCall
+import hu.elte.refjava.lang.refJava.PMethodDeclaration
+import hu.elte.refjava.lang.refJava.PVariableDeclaration
+import hu.elte.refjava.lang.refJava.PMemberFeatureCall
+import hu.elte.refjava.lang.refJava.PConstructorCall
+import hu.elte.refjava.lang.refJava.Pattern
 
 class RefJavaValidator extends AbstractRefJavaValidator {
-
+/*
 	@Check
 	def checkMetaVariableUniqueness(SchemeInstanceRule schemeInstanceRule) {
 		val matchingMetaVars = EcoreUtil2.getAllContentsOfType(schemeInstanceRule.matchingPattern, PMetaVariable)
@@ -27,6 +35,7 @@ class RefJavaValidator extends AbstractRefJavaValidator {
 		]
 	}
 
+	
 	@Check
 	def checkMetaVariableReferences(SchemeInstanceRule schemeInstanceRule) {
 		val matchingMetaVars = EcoreUtil2.getAllContentsOfType(schemeInstanceRule.matchingPattern, PMetaVariable)
@@ -47,6 +56,7 @@ class RefJavaValidator extends AbstractRefJavaValidator {
 			metaVarChecker.apply(it, name, multi, META_VARIABLE__NAME, META_VARIABLE__MULTI)
 		]
 	}
+	*/
 	
 	@Check
 	def multiMetavariableCountValidation(SchemeInstanceRule schemeInstanceRule) {
@@ -80,6 +90,56 @@ metavariable with multiplicity before, and after the target expression.", it, Re
 		
 		blocks.forEach[multiMetavarCountChecker( (it as PBlockExpression).expressions )]
 		
+	}
+	
+	@Check
+	def patternLimitationsChecker(SchemeInstanceRule schemeInstanceRule) {
+		
+		if(schemeInstanceRule.type == SchemeType.CLASS) {
+			if (!(schemeInstanceRule.replacementPattern.patterns.head instanceof PNothingExpression) 
+				&& !(schemeInstanceRule.replacementPattern.patterns.head instanceof PFeatureCall) 
+				|| schemeInstanceRule.replacementPattern.patterns.size > 1) {
+				error("A class refactoring's replacement pattern can only be either a single PNothingExpression or a single PFeatureCall.", 
+					schemeInstanceRule.replacementPattern, RefJavaPackage.Literals.PATTERN.getEStructuralFeature(0))
+					
+			} else if (schemeInstanceRule.replacementPattern.patterns.head instanceof PNothingExpression 
+				&& !(schemeInstanceRule.matchingPattern.patterns.head instanceof PMethodDeclaration) 
+				&& !(schemeInstanceRule.matchingPattern.patterns.head instanceof PVariableDeclaration)
+				|| schemeInstanceRule.matchingPattern.patterns.size > 1) {
+				error("The matching pattern can only be either a single PMethodDeclaration or a single PVariableDeclaration, if the replacement pattern is a PNothingExpression.", 
+					schemeInstanceRule.matchingPattern, RefJavaPackage.Literals.PATTERN.getEStructuralFeature(0))
+			}
+		} else if (schemeInstanceRule.type == SchemeType.LAMBDA) {
+			
+			if (!isValidLambdaExpression(schemeInstanceRule.replacementPattern.patterns.head) || schemeInstanceRule.replacementPattern.patterns.size > 1) {	
+				error("A lambda refactoring's replacement pattern can only be a single valid lambda expression.
+
+Example: new F() { public void apply() { <body> } }.apply()", schemeInstanceRule.replacementPattern, RefJavaPackage.Literals.PATTERN.getEStructuralFeature(0))
+			
+			} else if (!((schemeInstanceRule.replacementPattern.patterns.head as PMemberFeatureCall).memberCallTarget as PConstructorCall).elements.exists[
+				it instanceof PMethodDeclaration && ((it as PMethodDeclaration).prefix.name == (schemeInstanceRule.replacementPattern.patterns.head as PMemberFeatureCall).feature 
+				&& ((it as PMethodDeclaration).prefix.metaName as PMetaVariable).name == ((schemeInstanceRule.replacementPattern.patterns.head as PMemberFeatureCall).metaFeature as PMetaVariable).name)]) {
+				
+				error("The feature call's name can only be an existing method inside the lambda expression.", schemeInstanceRule.replacementPattern, RefJavaPackage.Literals.PATTERN.getEStructuralFeature(0))
+			
+			} else if (isValidLambdaExpression(schemeInstanceRule.matchingPattern.patterns.head) && !((schemeInstanceRule.matchingPattern.patterns.head as PMemberFeatureCall).memberCallTarget as PConstructorCall).elements.exists[
+				it instanceof PMethodDeclaration && ((it as PMethodDeclaration).prefix.name == (schemeInstanceRule.matchingPattern.patterns.head as PMemberFeatureCall).feature 
+				&& ((it as PMethodDeclaration).prefix.metaName as PMetaVariable).name == ((schemeInstanceRule.matchingPattern.patterns.head as PMemberFeatureCall).metaFeature as PMetaVariable).name)]) {
+				
+				error("The feature call's name can only be an existing method inside the lambda expression.", schemeInstanceRule.matchingPattern, RefJavaPackage.Literals.PATTERN.getEStructuralFeature(0))
+			
+			} else if (isValidLambdaExpression(schemeInstanceRule.matchingPattern.patterns.head) && schemeInstanceRule.matchingPattern.patterns.size > 1) {
+				error("The matching pattern's length can only be single, if the matching pattern is meant to be a lambda expression.", schemeInstanceRule.matchingPattern, RefJavaPackage.Literals.PATTERN.getEStructuralFeature(0))
+			}
+		}
+	}
+	
+	def private isValidLambdaExpression (PExpression expression) {
+		(expression instanceof PMemberFeatureCall)  
+		&& ((expression as PMemberFeatureCall).memberCallTarget instanceof PConstructorCall)
+		&& (((expression as PMemberFeatureCall).memberCallTarget as PConstructorCall).anonInstance)
+		&& ((expression as PMemberFeatureCall).memberCallTarget as PConstructorCall).elements.exists[it instanceof PMethodDeclaration]
+		&& ((expression as PMemberFeatureCall).memberCallTarget as PConstructorCall).elements.forall[it instanceof PMethodDeclaration || it instanceof PVariableDeclaration]
 	}
 
 }

@@ -3,8 +3,10 @@ package hu.elte.refjava.api
 import hu.elte.refjava.api.patterns.ASTBuilder
 import hu.elte.refjava.api.patterns.PatternMatcher
 import hu.elte.refjava.api.patterns.PatternParser
+import hu.elte.refjava.api.patterns.Utils
 import java.util.List
 import org.eclipse.jdt.core.dom.ASTNode
+import org.eclipse.jdt.core.dom.SimpleName
 import org.eclipse.jdt.core.dom.TypeDeclaration
 import org.eclipse.jface.text.IDocument
 
@@ -22,6 +24,12 @@ class BlockRefactoring implements Refactoring {
 	List<ASTNode> replacement
 
 	protected new(String matchingPatternString, String replacementPatternString) {
+		nameBindings.clear
+		typeBindings.clear
+		parameterBindings.clear
+		visibilityBindings.clear
+		argumentBindings.clear
+		setMetaVariables()
 		matcher = new PatternMatcher(PatternParser.parse(matchingPatternString))
 		builder = new ASTBuilder(PatternParser.parse(replacementPatternString))
 	}
@@ -36,7 +44,6 @@ class BlockRefactoring implements Refactoring {
 	}
 	
 	override apply() {
-		setMetaVariables()
 		return if(!safeTargetCheck) {
 			Status.TARGET_MATCH_FAILED
 		} else if (!safeMatch) {
@@ -54,17 +61,16 @@ class BlockRefactoring implements Refactoring {
 	
 	def private safeMatch() {
 		try {
-			if (!matcher.match(target, nameBindings, typeBindings, parameterBindings, matchingTypeReferenceString)  ) {
+			if (!matcher.match(target, nameBindings, typeBindings, parameterBindings, visibilityBindings, argumentBindings, matchingTypeReferenceString)  ) {
 				return false
 			}
 			target = matcher.modifiedTarget.toList
 			bindings.putAll(matcher.bindings)
-			return true 
+			true 
 		} catch (Exception e) {
 			println(e)
-			return false
+			false
 		}
-		
 	}
 	
 	def protected void setMetaVariables() {
@@ -72,19 +78,19 @@ class BlockRefactoring implements Refactoring {
 	}
 	
 	def protected safeTargetCheck() {
-		return true
+		true
 	}
 	
 	def protected targetCheck(String targetPatternString) {
 		try {
-			if(!matcher.match(PatternParser.parse(targetPatternString), target, targetTypeReferenceString)) {
+			if(!matcher.match(PatternParser.parse(targetPatternString), target, nameBindings, typeBindings, parameterBindings, visibilityBindings, argumentBindings, targetTypeReferenceString)) {
 				return false
 			}
 			bindings.putAll(matcher.bindings)
-			return true
+			true
 		} catch (Exception e) {
 			println(e)
-			return false
+			false
 		}
 	}
 
@@ -104,28 +110,53 @@ class BlockRefactoring implements Refactoring {
 
 	def private safeBuild() {
 		try {
-			replacement = builder.build(target.head.AST, bindings, nameBindings, typeBindings, parameterBindings, replacementTypeReferenceString)
+			replacement = builder.build(target.head.AST, bindings, nameBindings, typeBindings, parameterBindings, visibilityBindings, argumentBindings, replacementTypeReferenceString)
+			true
 		} catch (Exception e) {
 			println(e)
-			return false
+			false
 		}
-		return true
 	}
 
 	def private safeReplace() {
 		try {
+			val targetTypeDecl = Utils.getTypeDeclaration(target.head)
+			val assignmentBeforeReplacement = Check.getAssignmentsInClass(targetTypeDecl)
+			
 			val rewrite = builder.rewrite
 			target.tail.forEach[rewrite.remove(it, null)]
 			
-			val group = rewrite.createGroupNode(replacement)
+			val group = rewrite.createGroupNode(replacement)	
 			rewrite.replace( target.head, group, null)
 			val edits = rewrite.rewriteAST(document, null)
 			edits.apply(document)
 			
+			
+			val iCompUnit = Utils.getICompilationUnit(target.head)
+			val compUnit = Utils.parseSourceCode(iCompUnit)
+			val assignmentsAfterReplacement = Check.getAssignmentsInClass(compUnit.types.findFirst[
+				(it as TypeDeclaration).resolveBinding.qualifiedName == targetTypeDecl.resolveBinding.qualifiedName] as TypeDeclaration)
+			
+			compUnit.recordModifications			
+			val it1 = assignmentBeforeReplacement.iterator
+			val it2 = assignmentsAfterReplacement.iterator
+			
+			while (it1.hasNext) {
+				val value1 = it1.next
+				val value2 = it2.next
+				if(!(value1.leftHandSide as SimpleName).resolveBinding.isEqualTo((value2.leftHandSide as SimpleName).resolveBinding)) {
+					val thisExpression = compUnit.AST.newThisExpression
+					val fieldAccess = compUnit.AST.newFieldAccess
+					fieldAccess.name.identifier = (value2.leftHandSide as SimpleName).identifier
+					fieldAccess.expression = thisExpression
+					value2.leftHandSide = fieldAccess
+				}
+			}
+			Utils.applyChanges(compUnit, document)
+			true
 		} catch (Exception e) {
 			println(e)
-			return false
+			false
 		}
-		return true
 	}
 }

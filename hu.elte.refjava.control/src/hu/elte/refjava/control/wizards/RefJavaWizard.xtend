@@ -58,7 +58,7 @@ class RefJavaWizard extends Wizard {
 				val compUnit = parser.createAST(null) as CompilationUnit
 				
 				val selectedNodes = SelectionNodeFinder.selectedNodes(selection, compUnit)
-
+				
 				val provider = editor.documentProvider
 				val document = provider.getDocument(editor.editorInput)
 				

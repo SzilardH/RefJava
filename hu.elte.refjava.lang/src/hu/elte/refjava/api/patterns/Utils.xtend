@@ -11,6 +11,11 @@ import org.eclipse.jdt.core.dom.TypeDeclaration
 import org.eclipse.jdt.core.dom.VariableDeclarationStatement
 import org.eclipse.xtext.EcoreUtil2
 import org.eclipse.xtext.common.types.JvmTypeReference
+import org.eclipse.jdt.core.dom.ASTParser
+import org.eclipse.jdt.core.ICompilationUnit
+import org.eclipse.jface.text.IDocument
+import org.eclipse.jdt.core.dom.Assignment
+import org.eclipse.jdt.core.dom.Block
 
 class Utils {
 	
@@ -49,8 +54,6 @@ class Utils {
 		}
 	}
 
-	
-	
 	def static getTypeReferenceString(Pattern pattern) {
 		var String typeReferenceString = ""
 		val types = EcoreUtil2.getAllContentsOfType(pattern, JvmTypeReference)
@@ -76,12 +79,24 @@ class Utils {
 		tmp as CompilationUnit
 	}
 	
+	def static getICompilationUnit(ASTNode node) {
+		node.compilationUnit.getJavaElement as ICompilationUnit
+	}
+	
 	def static getMethodDeclaration(ASTNode node) {
 		var tmp = node
 			while (!(tmp instanceof MethodDeclaration) && tmp !== null) {
 				tmp = tmp.parent
 		}
 		tmp as MethodDeclaration
+	}
+	
+	def static getBlock(ASTNode node) {
+		var tmp = node
+			while (!(tmp instanceof Block) && tmp !== null) {
+				tmp = tmp.parent
+		}
+		tmp as Block
 	}
 	
 	def static getFieldDeclaration(ASTNode node) {
@@ -99,6 +114,26 @@ class Utils {
 		}
 		tmp as VariableDeclarationStatement
 	}
+	
+	def static getAssignment(ASTNode node) {
+		var tmp = node
+			while (!(tmp instanceof Assignment) && tmp !== null) {
+				tmp = tmp.parent
+		}
+		tmp as Assignment
+	}
+	
+	def static parseSourceCode(ICompilationUnit iCompUnit) {
+		val parser = ASTParser.newParser(AST.JLS12);
+		parser.resolveBindings = true
+		parser.source = iCompUnit
+		parser.createAST(null) as CompilationUnit
+	}
+	
+	def static applyChanges(CompilationUnit compUnit, IDocument document) {
+		compUnit.rewrite(document, null).apply(document)
+	}
+	
 	
 	
 }

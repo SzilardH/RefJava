@@ -13,7 +13,7 @@ class PatternParser {
 	@Inject static XtextResourceSet resourceSet
 	static Resource resource
 	static boolean initialized = false
-
+	
 	def static parse(String patternString) {
 		if (!initialized) {
 			resourceSet.addLoadOption(XtextResource.OPTION_RESOLVE_ALL, Boolean.TRUE)
@@ -24,15 +24,13 @@ class PatternParser {
 		if (resource.loaded) {
 			resource.unload
 		}
-
+		
 		val paddedPatternString = '''package p; local refactoring l() «patternString» ~ nothing'''
 		val inputStream = new ByteArrayInputStream(paddedPatternString.bytes)
-		resource.load(inputStream, resourceSet.loadOptions)
-		
+		resource.load(inputStream, resourceSet.loadOptions)	
 		val file = resource.contents.head as File
 		val refact = file.refactorings.head as SchemeInstanceRule
 		
 		return refact.matchingPattern
-	}
+	}	
 }
-

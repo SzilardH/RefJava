@@ -8,11 +8,8 @@ import hu.elte.refjava.lang.refJava.PConstructorCall
 import hu.elte.refjava.lang.refJava.PMemberFeatureCall
 import hu.elte.refjava.lang.refJava.PMetaVariable
 import java.util.List
-import org.eclipse.jdt.core.ICompilationUnit
-import org.eclipse.jdt.core.dom.AST
 import org.eclipse.jdt.core.dom.ASTNode
-import org.eclipse.jdt.core.dom.ASTParser
-import org.eclipse.jdt.core.dom.CompilationUnit
+import org.eclipse.jdt.core.dom.ExpressionStatement
 import org.eclipse.jdt.core.dom.TypeDeclaration
 import org.eclipse.jface.text.Document
 import org.eclipse.jface.text.IDocument
@@ -22,7 +19,6 @@ import static hu.elte.refjava.api.Check.*
 class LambdaRefactoring implements Refactoring {
 	
 	List<? extends ASTNode> target
-	List<TypeDeclaration> typeDeclList
 	IDocument document
 	
 	val PatternMatcher matcher
@@ -42,13 +38,19 @@ class LambdaRefactoring implements Refactoring {
 		MODIFICATION,
 		NEW
 	}
-
+	
 	protected new(String matchingPatternString, String replacementPatternString) {
-		matcher = new PatternMatcher(PatternParser.parse(matchingPatternString))
-		builder = new ASTBuilder(PatternParser.parse(replacementPatternString))
-		val matchingPatternsFirstElement = PatternParser.parse(matchingPatternString).patterns.get(0)
+		nameBindings.clear
+		typeBindings.clear
+		parameterBindings.clear
+		visibilityBindings.clear
+		argumentBindings.clear
+		setMetaVariables()
+		this.matcher = new PatternMatcher(PatternParser.parse(matchingPatternString))
+		this.builder = new ASTBuilder(PatternParser.parse(replacementPatternString))
 		this.matchingString = matchingPatternString
 		this.replacementString = replacementPatternString
+		val matchingPatternsFirstElement = PatternParser.parse(matchingPatternString).patterns.get(0)
 		if (matchingPatternsFirstElement instanceof PMemberFeatureCall && (matchingPatternsFirstElement as PMemberFeatureCall).memberCallTarget instanceof PConstructorCall &&
 			((matchingPatternsFirstElement as PMemberFeatureCall).memberCallTarget as PConstructorCall).anonInstance) {
 			this.refactoringType = RefactoringType.MODIFICATION
@@ -61,7 +63,7 @@ class LambdaRefactoring implements Refactoring {
 	override init(List<? extends ASTNode> target, IDocument document, List<TypeDeclaration> allTypeDeclInWorkspace) {
 		this.target = target
 		this.document = document
-		this.typeDeclList = allTypeDeclInWorkspace
+		Check.allTypeDeclarationInWorkSpace = allTypeDeclInWorkspace
 		
 		if(refactoringType == RefactoringType.MODIFICATION) {
 			val matchingLambdaExpression = PatternParser.parse(matchingString).patterns.get(0) as PMemberFeatureCall
@@ -74,12 +76,7 @@ class LambdaRefactoring implements Refactoring {
 		}
 	}
 	
-	def setTarget(List<?extends ASTNode> newTarget) {
-		this.target = newTarget
-	}
-	
 	override apply() {
-		setMetaVariables()
 		return if(!safeTargetCheck) {
 			Status.TARGET_MATCH_FAILED
 		} else if (!safeMatch) {
@@ -97,18 +94,16 @@ class LambdaRefactoring implements Refactoring {
 	
 	def private safeMatch() {
 		try {
-			if (!matcher.match(target, nameBindings, typeBindings, parameterBindings, matchingTypeReferenceString)) {
+			if (!matcher.match(target, nameBindings, typeBindings, parameterBindings, visibilityBindings, argumentBindings, matchingTypeReferenceString)) {
 				return false
 			}
 			target = matcher.modifiedTarget.toList
 			bindings.putAll(matcher.bindings)
-			
-			return true 
+			true 
 		} catch (Exception e) {
 			println(e)
-			return false
+			false
 		}
-		
 	}
 	
 	def protected void setMetaVariables() {
@@ -116,126 +111,114 @@ class LambdaRefactoring implements Refactoring {
 	}
 	
 	def protected safeTargetCheck() {
-		return true
+		true
 	}
 	
 	def protected targetCheck(String targetPatternString) {
 		try {
-			if(!matcher.match(PatternParser.parse(targetPatternString), target, targetTypeReferenceString)) {
+			if(!matcher.match(PatternParser.parse(targetPatternString), target, nameBindings, typeBindings, parameterBindings, visibilityBindings, argumentBindings, targetTypeReferenceString)) {
 				return false
 			}
 			bindings.putAll(matcher.bindings)
-			return true
+			true
 		} catch (Exception e) {
 			println(e)
-			return false
+			false
 		}
 	}
 
 	def private safeCheck() {
 		try {
-			return check()
+			check()
 		} catch (Exception e) {
 			println(e)
-			return false
+			false
 		}
 	}
 
 	def protected check() {
 		
-		Check.allTypeDeclarationInWorkSpace = typeDeclList
-		
 		if(refactoringType == RefactoringType.NEW) {
-			val replacementLambdaExpression = PatternParser.parse(replacementString).patterns.get(0) as PMemberFeatureCall
-			var boolean isMetaName = false
-			var String metaVarName
-			var String interfaceName
-			if((replacementLambdaExpression.memberCallTarget as PConstructorCall).metaName !== null) {
-				isMetaName = true
-				metaVarName = ((replacementLambdaExpression.memberCallTarget as PConstructorCall).metaName as PMetaVariable).name
-			} else {
-				interfaceName = (replacementLambdaExpression.memberCallTarget as PConstructorCall).name
-			}	
 			
-			return if (isMetaName) { nameBindings.put(metaVarName, Check.generateNewName) true } else { Check.isFresh(interfaceName) } &&
-				true
-				//TODO	
+			val iCompUnit = Utils.getICompilationUnit(target.head)
+			val compUnit = Utils.parseSourceCode(iCompUnit)
 			
+			val replacementPattern = PatternParser.parse(replacementString)
+			val replacementLambdaExpression = replacementPattern.patterns.head
+			if (((replacementLambdaExpression as PMemberFeatureCall).memberCallTarget as PConstructorCall).metaName !== null) {
+				val metaVarName = (((replacementLambdaExpression as PMemberFeatureCall).memberCallTarget as PConstructorCall).metaName as PMetaVariable).name
+				nameBindings.put(metaVarName, generateNewName)
+			}
+			
+			val newLambdaExpression = builder.build(replacementPattern, compUnit.AST, bindings, nameBindings, typeBindings, parameterBindings, visibilityBindings, argumentBindings, replacementTypeReferenceString).head as ExpressionStatement
+			
+			println("ASD")
+			return isFresh(getLambdaName(newLambdaExpression))
+				&& (lambdaVariableWrites(getLambdaBody(newLambdaExpression)).forall[isDeclaredIn(it, getLambdaBody(newLambdaExpression))]
+				|| isOnlyHaveAssignmentsWithFieldAccess(target))
+				
 		} else {
-			return Check.references(interfaceToModify).size == 1 &&
-				Check.contains(Check.references(interfaceToModify), target)
+			
+			return references(interfaceToModify).size == 1 &&
+				contains(references(interfaceToModify), target)
 		}
 	}
 
 	def private safeBuild() {
 		try {
-			replacement = builder.build(target.head.AST, bindings, nameBindings, typeBindings, parameterBindings, replacementTypeReferenceString)
+			replacement = builder.build(target.head.AST, bindings, nameBindings, typeBindings, parameterBindings, visibilityBindings, argumentBindings, replacementTypeReferenceString)
+			true
 		} catch (Exception e) {
 			println(e)
-			return false
-		}
-		return true
+			false
+		}		
 	}
 
 	def private safeReplace() {
 		try {
 			val rewrite = builder.rewrite
 			target.tail.forEach[rewrite.remove(it, null)]
-			
 			val group = rewrite.createGroupNode(replacement)
-			rewrite.replace( target.head, group, null)
+			rewrite.replace(target.head, group, null)
 			var edits = rewrite.rewriteAST(document, null)
 			edits.apply(document)
 			
-			val compUnit = Utils.getCompilationUnit(target.head)
-			val iCompUnit= compUnit.getJavaElement() as ICompilationUnit
+			val iCompUnit= Utils.getICompilationUnit(target.head)
+			val compUnit = Utils.parseSourceCode(iCompUnit)
+			compUnit.recordModifications
 			
-			val parser = ASTParser.newParser(AST.JLS12)
-			parser.resolveBindings = true
-			parser.source = iCompUnit
-			val newCompUnit = parser.createAST(null) as CompilationUnit
-			
-			newCompUnit.recordModifications
 			val replacementLambdaExpression = PatternParser.parse(replacementString).patterns.get(0) as PMemberFeatureCall
-			
 			if(refactoringType == RefactoringType.NEW) {
 				//if we are defining a new lambda expression, we just simply add a new interface to the target document
-				val newInterface = builder.buildNewInterface(replacementLambdaExpression, newCompUnit.AST, bindings, nameBindings, typeBindings, parameterBindings, replacementTypeReferenceString)
-				newCompUnit.types.add(newInterface)
+				val newInterface = builder.buildNewInterface(replacementLambdaExpression, compUnit.AST, bindings, nameBindings, typeBindings, parameterBindings, visibilityBindings, argumentBindings, replacementTypeReferenceString)
+				compUnit.types.add(newInterface)
 			} else {
 				//if we modifying an existing lambda expression, we have to find out where is the existing interface declaration on the workspace
 				val interfaceCompUnit = Utils.getCompilationUnit(interfaceToModify)
-				val interfaceICompUnit = interfaceCompUnit.getJavaElement() as ICompilationUnit
+				val interfaceICompUnit = Utils.getICompilationUnit(interfaceCompUnit)
 				if(interfaceICompUnit != iCompUnit) {
 					//if the interface's document isn't the same as the target document, we are going to remove that interface from that document and then add the new
 					interfaceCompUnit.recordModifications
-					val newInterface = builder.buildNewInterface(replacementLambdaExpression, interfaceCompUnit.AST, bindings, nameBindings, typeBindings, parameterBindings, replacementTypeReferenceString)
+					val newInterface = builder.buildNewInterface(replacementLambdaExpression, interfaceCompUnit.AST, bindings, nameBindings, typeBindings, parameterBindings, visibilityBindings, argumentBindings, replacementTypeReferenceString)
 					interfaceCompUnit.types.remove(interfaceToModify)
 					interfaceCompUnit.types.add(newInterface)
 					
 					val interfaceDocument = new Document(interfaceICompUnit.source)
-					val edits3 = interfaceCompUnit.rewrite(interfaceDocument, interfaceICompUnit.javaProject.getOptions(true))
-					edits3.apply(interfaceDocument)
-					val interfaceSource = interfaceDocument.get
-					interfaceICompUnit.getBuffer.setContents(interfaceSource)	
+					Utils.applyChanges(interfaceCompUnit, interfaceDocument)
+					interfaceICompUnit.getBuffer.setContents(interfaceDocument.get)	
 				} else {
 					//if the interface's document is the same as the target document, we just simply remove the interface from the target document and then add the new
-					val newInterface = builder.buildNewInterface(replacementLambdaExpression, newCompUnit.AST, bindings, nameBindings, typeBindings, parameterBindings, replacementTypeReferenceString)
-					val interfaceToRemove = newCompUnit.types.findFirst[(it as TypeDeclaration).resolveBinding.qualifiedName == interfaceToModify.resolveBinding.qualifiedName] as TypeDeclaration
-					newCompUnit.types.remove(interfaceToRemove)
-					newCompUnit.types.add(newInterface)
+					val newInterface = builder.buildNewInterface(replacementLambdaExpression, compUnit.AST, bindings, nameBindings, typeBindings, parameterBindings, visibilityBindings, argumentBindings, replacementTypeReferenceString)
+					val interfaceToRemove = compUnit.types.findFirst[(it as TypeDeclaration).resolveBinding.qualifiedName == interfaceToModify.resolveBinding.qualifiedName] as TypeDeclaration
+					compUnit.types.remove(interfaceToRemove)
+					compUnit.types.add(newInterface)
 				}
 			}
-			
-			val edits2 = newCompUnit.rewrite(document, iCompUnit.javaProject.getOptions(true))
-			edits2.apply(document)
-		   	val String newSource = document.get
-			iCompUnit.getBuffer.setContents(newSource)
-			
+			Utils.applyChanges(compUnit, document)
+			true
 		} catch (Exception e) {
 			println(e)
 			return false
 		}
-		return true
 	}
 }

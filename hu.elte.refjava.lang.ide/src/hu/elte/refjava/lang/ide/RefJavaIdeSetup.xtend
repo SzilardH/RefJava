@@ -15,6 +15,5 @@ class RefJavaIdeSetup extends RefJavaStandaloneSetup {
 
 	override createInjector() {
 		Guice.createInjector(Modules2.mixin(new RefJavaRuntimeModule, new RefJavaIdeModule))
-		//this.createInjectorAndDoEMFRegistration()
 	}
 }

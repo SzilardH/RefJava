@@ -38,5 +38,6 @@ Export-Package: hu.elte.refjava.api,
  hu.elte.refjava.lang.serializer,
  hu.elte.refjava.lang.services,
  hu.elte.refjava.lang.typesystem,
- hu.elte.refjava.lang.validation
+ hu.elte.refjava.lang.validation,
+ hu.elte.refjava.tests
 Import-Package: org.apache.log4j

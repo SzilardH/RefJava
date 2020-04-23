@@ -6,7 +6,9 @@ import java.util.List
 import java.util.Queue
 import org.eclipse.jdt.core.dom.ASTNode
 import org.eclipse.jdt.core.dom.ASTVisitor
+import org.eclipse.jdt.core.dom.AnonymousClassDeclaration
 import org.eclipse.jdt.core.dom.ArrayType
+import org.eclipse.jdt.core.dom.Assignment
 import org.eclipse.jdt.core.dom.Block
 import org.eclipse.jdt.core.dom.ClassInstanceCreation
 import org.eclipse.jdt.core.dom.ExpressionStatement
@@ -16,6 +18,7 @@ import org.eclipse.jdt.core.dom.MethodDeclaration
 import org.eclipse.jdt.core.dom.MethodInvocation
 import org.eclipse.jdt.core.dom.Name
 import org.eclipse.jdt.core.dom.QualifiedName
+import org.eclipse.jdt.core.dom.ReturnStatement
 import org.eclipse.jdt.core.dom.SimpleName
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration
 import org.eclipse.jdt.core.dom.Statement
@@ -25,9 +28,13 @@ import org.eclipse.jdt.core.dom.VariableDeclarationFragment
 import org.eclipse.jdt.core.dom.VariableDeclarationStatement
 
 class Check {
+
+	protected static List<TypeDeclaration> allTypeDeclarationInWorkSpace
 	
-	public static List<TypeDeclaration> allTypeDeclarationInWorkSpace
-	
+	def static isSingle(List<? extends ASTNode> target) {
+		target.size == 1
+	}
+
 	def static isInsideBlock(ASTNode node) {
 		node.parent instanceof Block
 	}
@@ -39,7 +46,7 @@ class Check {
 	def dispatch static isVariableDeclaration(ASTNode node) {
 		node instanceof VariableDeclarationStatement
 	}
-	
+
 	def dispatch static isVariableDeclaration(List<?extends ASTNode> nodes) {
 		nodes.forall[it instanceof VariableDeclarationStatement]
 	}
@@ -49,17 +56,10 @@ class Check {
 			node
 		}
 	}
-	
+
 	def dispatch static asVariableDeclaration(List<?extends ASTNode> nodes) {
-		var Boolean l
-		for (node : nodes) {
-			if ( !(node instanceof VariableDeclarationStatement) ) {
-				l = false
-			}
-		}
-		
-		if (l) {
-			return nodes
+		if (nodes.isVariableDeclaration) {
+			nodes as List<VariableDeclarationStatement>
 		}
 	}
 
@@ -92,8 +92,24 @@ class Check {
 	}
 	
 	def dispatch static boolean isReferencedIn(List<VariableDeclarationStatement> varDeclList, List<? extends ASTNode> nodes) {
-		varDeclList.forall[!isReferencedIn(nodes)]
+		varDeclList.exists[it.isReferencedIn(nodes)]
 	}
+	
+	//block checks
+	def static getAssignmentsInClass(TypeDeclaration typeDecl) {
+		val List<Assignment> assignments = newArrayList
+		val visitor = new ASTVisitor() {
+			override visit(Assignment assignment) {
+				if (assignment.leftHandSide instanceof SimpleName) {
+					assignments.add(assignment)
+				}
+				return true
+			}
+		}
+		typeDecl.accept(visitor)
+		assignments
+	}
+	
 	
 	//lambda checks	
 	def static isFresh(String name) {
@@ -112,14 +128,13 @@ class Check {
 	def static references(TypeDeclaration typeDecl) {
 		val List<ASTNode> refs = newArrayList
 		val binding = typeDecl.name.resolveBinding
-		
 		allTypeDeclarationInWorkSpace.forEach[
 			val visitor = new ASTVisitor() {
 				override visit(SimpleName name) {
 					if (name.resolveBinding.isEqualTo(binding) && name != typeDecl.name) {
 						refs.add(name)
 					}
-					return true
+					true
 				}
 			}
 			it.accept(visitor)
@@ -141,6 +156,185 @@ class Check {
 		}
 		return false
 	}
+	
+	def static getLambdaName(ExpressionStatement exprStatement) {
+		((exprStatement.expression as MethodInvocation).expression as ClassInstanceCreation).type.toString
+	}
+	
+	def static getLambdaBody(ExpressionStatement exprStatement) {
+		((exprStatement.expression as MethodInvocation).expression as ClassInstanceCreation).anonymousClassDeclaration
+	}
+	
+	def static lambdaVariableWrites(AnonymousClassDeclaration anonClass) {
+		val List<Assignment> variableWrites = newArrayList
+		anonClass.bodyDeclarations.forEach [
+			val visitor = new ASTVisitor() {
+				override visit(Assignment assignment) {
+					variableWrites.add(assignment)
+				}
+			}
+			(it as ASTNode).accept(visitor)
+		]
+		variableWrites
+	}
+	
+	def static getVariableDeclarations(AnonymousClassDeclaration anonClass) {
+		val List<VariableDeclarationStatement> variableDeclarations = newArrayList
+		anonClass.bodyDeclarations.forEach [
+			val visitor = new ASTVisitor() {
+				override visit(VariableDeclarationStatement varDecl) {
+					variableDeclarations.add(varDecl)
+				}
+			}
+			(it as ASTNode).accept(visitor)
+		]
+		variableDeclarations
+	}
+	
+	def static getAllFieldDeclarationsInClass(TypeDeclaration typeDecl) {
+		val List<FieldDeclaration> fieldDeclarations = newArrayList
+		typeDecl.bodyDeclarations.forEach[
+			val visitor = new ASTVisitor() {
+				override visit(FieldDeclaration fieldDecl) {
+					
+					fieldDeclarations.add(fieldDecl)
+				}
+			}
+			(it as ASTNode).accept(visitor)
+		]
+		fieldDeclarations
+	}
+	
+	def static isDeclaredIn(Assignment assignment, AnonymousClassDeclaration anonClass) {
+		if(assignment.leftHandSide instanceof SimpleName) {
+			val varName = (assignment.leftHandSide as SimpleName)
+			val List<ASTNode> namesList = newArrayList
+			anonClass.bodyDeclarations.forEach[
+				val visitor = new ASTVisitor() {
+					override visit(SimpleName name) {
+						if(name.identifier == varName.identifier) {
+							namesList.add(name)
+							return true
+						}
+						true
+					}
+				}
+				(it as ASTNode).accept(visitor)
+			]
+			for (name : namesList) {
+				if (name == varName) {
+					return false
+				} else if (name.parent instanceof VariableDeclarationFragment) {
+					return true
+				}
+			}
+			return false
+		}
+		true
+	}
+	
+	def static isOnlyHaveAssignmentsWithFieldAccess(List<? extends ASTNode> target) {
+		
+		val List<FieldDeclaration> fieldDeclarations = newArrayList
+		allTypeDeclarationInWorkSpace.forEach[
+			it.bodyDeclarations.forEach[
+				if (it instanceof FieldDeclaration) {
+					fieldDeclarations.add(it)
+				}
+			]
+		]
+		
+		!target.exists[
+			val visitor = new ASTVisitor(){
+				public boolean found = false
+				override visit(SimpleName name) {
+					if (Utils.getAssignment(name) !== null && name == Utils.getAssignment(name).leftHandSide && !fieldDeclarations.exists[
+						((it as FieldDeclaration).fragments as List<VariableDeclarationFragment>).exists[
+							it.name.resolveBinding.isEqualTo(name.resolveBinding)] ]) {
+							found = true
+							return false
+						}
+						true	
+				}
+			}
+			it.accept(visitor)
+			return visitor.found
+		]
+	}
+	
+	def static containsValueReturn(List<? extends ASTNode> target) {
+		target.exists [
+			val visitor = new ASTVisitor() {
+				public var found = false
+				override visit(ReturnStatement statement) {
+					if (statement.expression !== null) {
+						found = true
+						return false
+					}
+					true
+				}
+			}
+			it.accept(visitor)
+			visitor.found
+		]
+	}
+	
+	def static containsVoidReturn(List<? extends ASTNode> target) {
+		target.exists [
+			val visitor = new ASTVisitor() {
+				public var found = false
+				override visit(ReturnStatement statement) {
+					if (statement.expression === null) {
+						found = true
+						return false
+					}
+					true
+				}
+			}
+			it.accept(visitor)
+			visitor.found
+		]
+	}
+	
+	def static getVoidReturn(List<? extends ASTNode> target) {
+		val List<ASTNode> result = newArrayList
+		target.exists [
+			val visitor = new ASTVisitor() {
+				public var found = false
+				override visit(ReturnStatement statement) {
+					if (statement.expression === null) {
+						found = true
+						result.add(statement)
+						return false
+					}
+					true
+				}
+			}
+			it.accept(visitor)
+			visitor.found
+		]
+		result.head as ReturnStatement
+	}
+	
+	def static isLastExecutionPath(ReturnStatement statement) {
+		var firstLevelNodeInMethod = statement as ASTNode
+		while (!((firstLevelNodeInMethod.parent instanceof Block) && ((firstLevelNodeInMethod.parent as Block).parent instanceof MethodDeclaration))) {
+			firstLevelNodeInMethod = firstLevelNodeInMethod.parent
+		}
+		val node = firstLevelNodeInMethod
+		val nodesAfterReturnStatement = (firstLevelNodeInMethod.parent as Block).statements.dropWhile[it != node]
+		nodesAfterReturnStatement.size == 1 && 	nodesAfterReturnStatement.head == node
+	}
+	
+	
+	def static allExecutionPathContainsValueReturn(List<? extends ASTNode> target) {
+		
+		
+		
+		
+		
+	}
+	
 	
 	//method or field property getters
 	def static String getMethodName(List<? extends ASTNode> target) {
@@ -218,8 +412,9 @@ class Check {
 	
 	//class checks
 	def static enclosingClass(List<? extends ASTNode> target) {
-		val typeDecl = Utils.getTypeDeclaration(target.head)
-		allTypeDeclarationInWorkSpace.findFirst[it.resolveBinding.qualifiedName == typeDecl.resolveBinding.qualifiedName]
+		//val typeDecl = 
+		Utils.getTypeDeclaration(target.head)
+		//allTypeDeclarationInWorkSpace.findFirst[it.resolveBinding.qualifiedName == typeDecl.resolveBinding.qualifiedName]
 	}
 	
 	def static superClass(TypeDeclaration typeDecl) {
@@ -244,6 +439,7 @@ class Check {
 		
 		if (target.head instanceof FieldDeclaration) {
 			val fieldDecl = target.head as FieldDeclaration
+			//val fieldDecl = getFieldFromClass(getFragmentNames(target), typeDecl)
 			val fragments = fieldDecl.fragments as List<VariableDeclarationFragment>
 			for(fragment : fragments) {
 				val binding = fragment.resolveBinding
@@ -261,6 +457,7 @@ class Check {
 			}
 		} else if (target.head instanceof MethodDeclaration) {
 			val methodDecl = target.head as MethodDeclaration
+			//val methodDecl = getMethodFromClass(targetMethod.name.identifier, targetMethod.parameters, typeDecl)
 			val binding = methodDecl.resolveBinding
 			for(declaration : bodyDeclarations) {
 				val visitor = new ASTVisitor() {
@@ -403,7 +600,20 @@ class Check {
 		method
 	}
 	
-	def private static getMethodFromClass(String methodName, List<SingleVariableDeclaration> parameters, TypeDeclaration typeDecl) {
+	def static getFieldFromClass(List<String> fragmentNames, TypeDeclaration typeDecl) {
+		typeDecl.bodyDeclarations.findFirst[
+			val iter = fragmentNames.iterator
+			it instanceof FieldDeclaration && ((it as FieldDeclaration).fragments as List<VariableDeclarationFragment>).forall[
+				if (iter.hasNext){
+					it.name.identifier == iter.next
+				} else {
+					false
+				}
+			]
+		] as FieldDeclaration
+	}
+	
+	def static getMethodFromClass(String methodName, List<SingleVariableDeclaration> parameters, TypeDeclaration typeDecl) {
 		val methodsInClass = typeDecl.bodyDeclarations.filter[it instanceof MethodDeclaration]
 		var MethodDeclaration result
 		
@@ -594,6 +804,8 @@ class Check {
 		
 		for(fragmentName : fragmentNames) {
 			val allReferences = referencesThatCanGetViolated(fragmentName, targetTypeDecl)
+			println("Allrefs: " +allReferences)
+			
 			val Queue<MethodDeclaration> methodsToCheck = newLinkedList
 			
 			for(ref : allReferences) {
@@ -662,6 +874,7 @@ class Check {
 						tmp.add(method)
 						methodRefs.addAll(references(tmp, t))
 					}
+					
 					if(!methodRefs.empty) {
 						for(methodRef : methodRefs) {
 							if(Utils.getMethodDeclaration(methodRef) !== null && Utils.getMethodDeclaration(methodRef).visibility != "private") {
@@ -701,6 +914,31 @@ class Check {
 	def static privateReferences(List<String> fragmentNames, TypeDeclaration targetTypeDecl) {
 		references("private", fragmentNames, targetTypeDecl)
 	}
+	
+	
+	def static getAllSubClasses(TypeDeclaration typeDecl) {
+		val binding = typeDecl.resolveBinding
+		val List<TypeDeclaration> subClasses = newArrayList
+		
+		allTypeDeclarationInWorkSpace.forEach[
+			if(it.resolveBinding.isSubClassOf(binding) && typeDecl != it) {
+				subClasses.add(it)
+			}
+		]
+		subClasses
+	}
+	
+	def static overridesOf(String methodName, List<SingleVariableDeclaration> methodParameters, TypeDeclaration targetTypeDeclaration) {
+		val subClasses = targetTypeDeclaration.allSubClasses
+		val List<MethodDeclaration> overriddenMethods = newArrayList
+		subClasses.forEach[
+			if(!isUniqueMethodIn(methodName, methodParameters, it)) {
+				overriddenMethods.add(getMethodFromClass(methodName, methodParameters, it))
+			}
+		]
+		overriddenMethods
+	}
+	
 	
 	
 	

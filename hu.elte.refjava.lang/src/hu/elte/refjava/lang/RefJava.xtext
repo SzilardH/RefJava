@@ -68,14 +68,13 @@ CompositeRefactoringRule:
 // Patterns //
 //////////////
 
+enum MetaVariableType :
+	SIMPLE='#' | NAME='name#' | TYPE='type#' | PARAMETER='parameter#' | VISIBILITY="visibility#" | ARGUMENT="argument#"
+;
+
 PMetaVariable returns PExpression:
 	{PMetaVariable} type=MetaVariableType name=ID multi?='..'?
 ;
-
-enum MetaVariableType :
-	SIMPLE='#' | NAME='name#' | TYPE='type#' | PARAMETER='parameter#'
-;
-
 
 Pattern:
 	patterns+=PExpressionOrVarDeclaration =>(';' patterns+=PExpressionOrVarDeclaration)* ';'?
@@ -116,7 +115,8 @@ PMemberFeatureCall returns PExpression:
 	PPrimaryExpression (
 		=>({PMemberFeatureCall.memberCallTarget=current} ".")
 		(feature=IdOrSuper | metaFeature=PMetaVariable) (
-			=>'(' memberCallArguments=PMetaVariable? ')'
+			//=>'(' (memberCallArguments+=PMetaVariable (',' memberCallArguments+=PMetaVariable)*)? ')'   //currently restricted to PMetaVariable, should be PExpression
+			=>'(' memberCallArguments=PMetaVariable? ')' 
 		)?
 	)*
 ;
@@ -134,7 +134,8 @@ PPrimaryExpression returns PExpression
 
 PConstructorCall returns PExpression:
 	{PConstructorCall} 'new' (name=ValidID | metaName=PMetaVariable) //constructor=[types::JvmConstructor|QualifiedName] 
-	=>'(' (arguments+=PExpression (',' arguments+=PExpression)*)? ')' (
+	//=>'(' (arguments+=PMetaVariable (',' arguments+=PMetaVariable)*)? ')' (            //currently restricted to PMetaVariable, should be PExpression
+	=>'(' arguments=PMetaVariable? ')' (
 		anonInstance?='{' (elements+=PDeclaration =>(';' elements+=PDeclaration)* ';'?)? '}'
 			// =>: local, distinguishes semicolons
 	)?
@@ -150,11 +151,13 @@ PBlockExpression returns PExpression:
 PFeatureCall returns PExpression:
 	{PFeatureCall} (
 		feature=IdOrSuper (
-			=>'(' (featureCallArguments+=PExpression (',' featureCallArguments+=PExpression)*)? ')'
+			//=>'(' (featureCallArguments+=PExpression (',' featureCallArguments+=PExpression)*)? ')'     //currently restricted to PMetaVariable, should be PExpression
+			=>'(' featureCallArguments=PMetaVariable? ')'
 		)?
 	) | (
 		metaFeature=PMetaVariable
-			=>'(' (featureCallArguments+=PExpression (',' featureCallArguments+=PExpression)*)? ')'
+			//=>'(' (featureCallArguments+=PExpression (',' featureCallArguments+=PExpression)*)? ')'     //currently restricted to PMetaVariable, should be PExpression
+			=>'(' featureCallArguments=PMetaVariable? ')' 
 	)
 ;
 
@@ -194,25 +197,10 @@ XPrimaryExpression returns xbase::XExpression
 	| XParenthesizedExpression
 	| MetaVariable
 	| TargetExpression
-	| TypeMetaVariable
-	| NameMetaVariable
-	| ParameterMetaVariable
 ;
 
 MetaVariable returns xbase::XExpression:
-	{MetaVariable} '#' name=ID multi?='..'?
-;
-
-TypeMetaVariable returns xbase::XExpression:
-	{TypeMetaVariable} 'type#' name=ID
-;
-
-NameMetaVariable returns xbase::XExpression:
-	{NameMetaVariable} 'name#' name=ID
-;
-
-ParameterMetaVariable returns xbase::XExpression:
-	{ParameterMetaVariable} 'parameter#' name=ID multi?='..'?
+	{MetaVariable} type=MetaVariableType name=ID multi?='..'?
 ;
 
 TargetExpression returns xbase::XExpression:
