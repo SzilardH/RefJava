@@ -29,6 +29,8 @@ import org.eclipse.jdt.core.dom.VariableDeclarationStatement
 import org.eclipse.xtext.EcoreUtil2
 import org.eclipse.jdt.core.dom.Expression
 import hu.elte.refjava.lang.refJava.PFeatureCall
+import hu.elte.refjava.lang.refJava.PReturnExpression
+import org.eclipse.jdt.core.dom.ReturnStatement
 
 class PatternMatcher {
 	
@@ -211,11 +213,11 @@ class PatternMatcher {
 		
 		//matching method parameters
 		var boolean parameterCheck = true
-		if (pMethodDecl.arguments.size > 0) {
-			if (pMethodDecl.arguments.size != methodDecl.parameters.size) {
+		if (pMethodDecl.parameters.size > 0) {
+			if (pMethodDecl.parameters.size != methodDecl.parameters.size) {
 				parameterCheck = false
 			} else {
-				val argIt = pMethodDecl.arguments.iterator
+				val argIt = pMethodDecl.parameters.iterator
 				val paramIt = (methodDecl.parameters as List<SingleVariableDeclaration>).iterator
 				while(argIt.hasNext && parameterCheck) {
 					val arg = argIt.next
@@ -223,9 +225,9 @@ class PatternMatcher {
 					parameterCheck = param.name.identifier == arg.name && param.type.resolveBinding.qualifiedName == typeReferenceQueue.remove 
 				}
 			}
-		} else if (pMethodDecl.metaArguments !== null) {
-			val metaVar = pMethodDecl.metaArguments as PMetaVariable
-			val parameters = parameterBindings.get((pMethodDecl.metaArguments as PMetaVariable).name)
+		} else if (pMethodDecl.metaParameters !== null) {
+			val metaVar = pMethodDecl.metaParameters as PMetaVariable
+			val parameters = parameterBindings.get((pMethodDecl.metaParameters as PMetaVariable).name)
 			if (parameters === null) {
 				parameterBindings.put(metaVar.name, methodDecl.parameters)
 				parameterCheck = true
@@ -275,9 +277,6 @@ class PatternMatcher {
 			//matching method invocation parameters
 			var boolean argumentCheck = true
 			if(featureCall.memberCallArguments !== null) {
-				//TODO
-				
-				
 				val metaVarName = (featureCall.memberCallArguments as PMetaVariable).name
 				if (argumentBindings.get(metaVarName) ===  null) {
 					argumentBindings.put(metaVarName, methodInv.arguments)
@@ -287,7 +286,7 @@ class PatternMatcher {
 					if(methodInv.arguments.size != arguments.size) {
 						argumentCheck = false
 					} else {
-						//TODO
+						//currently we can't assign values to argument-binding meta variables
 						argumentCheck = true
 					}
 				}
@@ -328,7 +327,6 @@ class PatternMatcher {
 			//matching method invocation parameters
 			var boolean argumentCheck = true
 			if(featureCall.featureCallArguments !== null) {
-				//TODO
 				val metaVarName = (featureCall.featureCallArguments as PMetaVariable).name
 				if (argumentBindings.get(metaVarName) ===  null) {
 					argumentBindings.put(metaVarName, methodInv.arguments)
@@ -338,7 +336,7 @@ class PatternMatcher {
 					if(methodInv.arguments.size != arguments.size) {
 						argumentCheck = false
 					} else {
-						//TODO
+						//currently we can't assign values to argument-binding meta variables
 						argumentCheck = true
 					}
 				}
@@ -351,8 +349,6 @@ class PatternMatcher {
 			return false
 		}
 	}
-	
-	
 	
 	//variable declaration matching
 	def private dispatch boolean doMatch(PVariableDeclaration varDecl, VariableDeclarationStatement varDeclStatement) {
@@ -452,9 +448,26 @@ class PatternMatcher {
 				typeCheck = type.resolveBinding.qualifiedName == fieldDecl.type.resolveBinding.qualifiedName
 			}
 		}
-		
 		return nameCheck && visibilityCheck && typeCheck
 	}
+	
+	def private dispatch boolean doMatch(PReturnExpression returnExpr, ReturnStatement returnStatement) {
+		
+		var boolean expressionCheck 
+		if (returnExpr.expression !== null) {
+			val exp = returnExpr.expression
+			if(exp instanceof PMetaVariable) {
+				bindings.put(exp.name, #[returnStatement.expression])
+				expressionCheck = true
+			} else {
+				expressionCheck = false
+			}
+		} else {
+			expressionCheck = true
+		}
+		expressionCheck
+	}
+	
 	
 	def private dispatch doMatch(PExpression anyOtherPattern, ASTNode anyOtherNode) {
 		false

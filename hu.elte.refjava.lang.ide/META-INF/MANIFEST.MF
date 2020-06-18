@@ -14,7 +14,7 @@ Require-Bundle: hu.elte.refjava,
  org.eclipse.xtext.xbase.lib,
  org.eclipse.xtend.lib,
  org.eclipse.xtend.lib.macro
-Bundle-RequiredExecutionEnvironment: JavaSE-12
+Bundle-RequiredExecutionEnvironment: JavaSE-1.8
 Export-Package: hu.elte.refjava.lang.ide,
  hu.elte.refjava.lang.ide.contentassist.antlr,
  hu.elte.refjava.lang.ide.contentassist.antlr.internal

@@ -16,6 +16,11 @@ import org.eclipse.jdt.core.ICompilationUnit
 import org.eclipse.jface.text.IDocument
 import org.eclipse.jdt.core.dom.Assignment
 import org.eclipse.jdt.core.dom.Block
+import hu.elte.refjava.lang.refJava.PExpression
+import hu.elte.refjava.lang.refJava.PMemberFeatureCall
+import hu.elte.refjava.lang.refJava.PConstructorCall
+import hu.elte.refjava.lang.refJava.PMethodDeclaration
+import hu.elte.refjava.lang.refJava.PVariableDeclaration
 
 class Utils {
 	
@@ -134,6 +139,13 @@ class Utils {
 		compUnit.rewrite(document, null).apply(document)
 	}
 	
+	def static isValidLambdaExpression (PExpression expression) {
+		(expression instanceof PMemberFeatureCall)  
+		&& ((expression as PMemberFeatureCall).memberCallTarget instanceof PConstructorCall)
+		&& (((expression as PMemberFeatureCall).memberCallTarget as PConstructorCall).anonInstance)
+		&& ((expression as PMemberFeatureCall).memberCallTarget as PConstructorCall).elements.exists[it instanceof PMethodDeclaration]
+		&& ((expression as PMemberFeatureCall).memberCallTarget as PConstructorCall).elements.forall[it instanceof PMethodDeclaration || it instanceof PVariableDeclaration]
+	}
 	
 	
 }

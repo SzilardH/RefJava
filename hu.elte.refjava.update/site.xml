@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<site>
+   <feature url="features/hu.elte.refjava.feature_1.0.0.202005151427.jar" id="hu.elte.refjava.feature" version="1.0.0.202005151427">
+      <category name="RefJava"/>
+   </feature>
+   <category-def name="RefJava" label="RefJava"/>
+</site>

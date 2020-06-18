@@ -1,32 +1,22 @@
 package hu.elte.refjava.examples;
 
-public class Target {
-	int a;
+class A {
+}
 
-	/*
-	 * Insert a new block after the 3rd statement
-	 * and move the first 3 statements into it.
-	 * Change the 4th 'a' reference to 'this.a'
-	 * and try again the last step.
-	 */
-	void f() 
-	{
-		int x;
+class B extends A {
+	int b;
+	int a;
+	
+	void f() {
+		int x = 1;
 		int a;
-		{
-			System.out.println("asd");
-			int k;
-		}
-		int b;
-		
+		a = x;
+		g();
+		int y = 0;
+		a = y;
+	}
+	
+	void g() {
+		a = b = 0;
 	}
 }
-
-
-/*new F() {
-public void apply() {
-	System.out.println("ASD");
-}
-}.apply();*/
-
-//interface F { void apply(); }

@@ -25,6 +25,7 @@ import org.eclipse.jdt.core.dom.Modifier.ModifierKeyword
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration
 import org.eclipse.jdt.core.dom.Type
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite
+import hu.elte.refjava.lang.refJava.PReturnExpression
 
 class ASTBuilder {
 
@@ -68,8 +69,9 @@ class ASTBuilder {
 			this.typeReferenceQueue.addAll(tmp)
 		}
 		
-		if(pattern instanceof PNothingExpression) {
-			null
+		if(pattern.patterns.head instanceof PNothingExpression) {
+			val List<ASTNode> emptyList = newArrayList
+			emptyList
 		} else {
 			pattern.patterns.doBuildPatterns
 		}
@@ -88,7 +90,12 @@ class ASTBuilder {
 		newInterface.interface = true
 		
 		if((lambdaExpr.memberCallTarget as PConstructorCall).metaName !== null) {
-			newInterface.name.identifier = Check.generateNewName()
+			val name = ((lambdaExpr.memberCallTarget as PConstructorCall).metaName as PMetaVariable).name
+			if (nameBindings.get(name) === null) {
+				newInterface.name.identifier = Check.generateNewName()
+			} else {
+				newInterface.name.identifier = nameBindings.get(name)
+			}
 		} else {
 			newInterface.name.identifier = (lambdaExpr.memberCallTarget as PConstructorCall).name
 		}
@@ -193,16 +200,16 @@ class ASTBuilder {
 		}
 		
 		//adding method parameters
-		if (methodDecl.arguments.size > 0) {
-			for(argument : methodDecl.arguments) {
+		if (methodDecl.parameters.size > 0) {
+			for(argument : methodDecl.parameters) {
 				val typeName = typeReferenceQueue.remove
 				val methodParameterDeclaration = ast.newSingleVariableDeclaration
 				methodParameterDeclaration.type = Utils.getTypeFromId(typeName, ast)
 				methodParameterDeclaration.name.identifier = argument.name
 				method.parameters.add(methodParameterDeclaration)
 			}
-		} else if (methodDecl.metaArguments !== null) {
-			val parameterList = parameterBindings.get((methodDecl.metaArguments as PMetaVariable).name)
+		} else if (methodDecl.metaParameters !== null) {
+			val parameterList = parameterBindings.get((methodDecl.metaParameters as PMetaVariable).name)
 			method.parameters.addAll(ASTNode.copySubtrees(ast, parameterList))
 		}
 		
@@ -263,42 +270,42 @@ class ASTBuilder {
 	def private dispatch doBuild(PVariableDeclaration varDecl) {
 		val fragment = ast.newVariableDeclarationFragment
 		
-		//adding variable name
+		//adding field name
 		if(varDecl.metaName !== null) {
 			fragment.name.identifier = nameBindings.get( (varDecl.metaName as PMetaVariable).name )
 		} else {
 			fragment.name.identifier = varDecl.name
 		}
 		
-		val newVar = ast.newFieldDeclaration(fragment)
+		val newField = ast.newFieldDeclaration(fragment)
 		
-		//adding variable visibility
+		//adding field visibility
 		if (varDecl.metaVisibility !== null) {
 			val metaVarName = (varDecl.metaVisibility as PMetaVariable).name
 			switch visibilityBindings.get(metaVarName) {
-				case PUBLIC: newVar.modifiers().add(ast.newModifier(ModifierKeyword.PUBLIC_KEYWORD))
-				case PRIVATE: newVar.modifiers().add(ast.newModifier(ModifierKeyword.PRIVATE_KEYWORD))
-				case PROTECTED: newVar.modifiers().add(ast.newModifier(ModifierKeyword.PROTECTED_KEYWORD))
+				case PUBLIC: newField.modifiers().add(ast.newModifier(ModifierKeyword.PUBLIC_KEYWORD))
+				case PRIVATE: newField.modifiers().add(ast.newModifier(ModifierKeyword.PRIVATE_KEYWORD))
+				case PROTECTED: newField.modifiers().add(ast.newModifier(ModifierKeyword.PROTECTED_KEYWORD))
 				default: {}
 			}
 		} else {
 			switch varDecl.visibility {
-				case PUBLIC: newVar.modifiers().add(ast.newModifier(ModifierKeyword.PUBLIC_KEYWORD))
-				case PRIVATE: newVar.modifiers().add(ast.newModifier(ModifierKeyword.PRIVATE_KEYWORD))
-				case PROTECTED: newVar.modifiers().add(ast.newModifier(ModifierKeyword.PROTECTED_KEYWORD))
+				case PUBLIC: newField.modifiers().add(ast.newModifier(ModifierKeyword.PUBLIC_KEYWORD))
+				case PRIVATE: newField.modifiers().add(ast.newModifier(ModifierKeyword.PRIVATE_KEYWORD))
+				case PROTECTED: newField.modifiers().add(ast.newModifier(ModifierKeyword.PROTECTED_KEYWORD))
 				default: {}
 			}
 		}
 		
-		//adding variable type
+		//adding field type
 		if(varDecl.type !== null) {
-			newVar.type = Utils.getTypeFromId(typeReferenceQueue.remove, ast)
+			newField.type = Utils.getTypeFromId(typeReferenceQueue.remove, ast)
 		} else {
 			val name = (varDecl.metaType as PMetaVariable).name
-			newVar.type = ASTNode.copySubtree(ast, typeBindings.get(name)) as Type
-			//newVar.type = Utils.getTypeFromId(typeBindings.get(name).resolveBinding.qualifiedName, ast)
+			newField.type = ASTNode.copySubtree(ast, typeBindings.get(name)) as Type
 		}
-		newVar
+		
+		newField
 	}
 	
 	//method invocation (with expression) builder
@@ -348,6 +355,21 @@ class ASTBuilder {
 		
 		val statement = ast.newExpressionStatement(methodInv)
 		statement
+	}
+	
+	//return statement builder
+	def private dispatch ASTNode doBuild(PReturnExpression returnExpr) {
+		val returnStatement = ast.newReturnStatement
+		
+		if(returnExpr.expression !== null && returnExpr.expression instanceof PMetaVariable) {
+			val expression = bindings.get((returnExpr.expression as PMetaVariable).name)
+			println(expression.head.class)
+			if (expression.head instanceof Expression) {
+				val copy = ASTNode.copySubtree(ast, expression.head) as Expression
+				returnStatement.expression = copy
+			}
+		}
+		returnStatement
 	}
 	
 	//block builder

@@ -29,7 +29,7 @@ class BlockRefactoring implements Refactoring {
 		parameterBindings.clear
 		visibilityBindings.clear
 		argumentBindings.clear
-		setMetaVariables()
+		setMetaVariables
 		matcher = new PatternMatcher(PatternParser.parse(matchingPatternString))
 		builder = new ASTBuilder(PatternParser.parse(replacementPatternString))
 	}
@@ -37,6 +37,7 @@ class BlockRefactoring implements Refactoring {
 	override init(List<? extends ASTNode> target, IDocument document, List<TypeDeclaration> allTypeDeclInWorkspace) {
 		this.target = target
 		this.document = document
+		Check.allTypeDeclarationInWorkSpace = allTypeDeclInWorkspace
 	}
 	
 	def setTarget(List<?extends ASTNode> newTarget) {
@@ -104,8 +105,7 @@ class BlockRefactoring implements Refactoring {
 	}
 
 	def protected check() {
-		//Check.isInsideBlock(target)
-		true
+		Check.isInsideBlock(target)
 	}
 
 	def private safeBuild() {
@@ -120,31 +120,29 @@ class BlockRefactoring implements Refactoring {
 
 	def private safeReplace() {
 		try {
+			
 			val targetTypeDecl = Utils.getTypeDeclaration(target.head)
 			val assignmentBeforeReplacement = Check.getAssignmentsInClass(targetTypeDecl)
 			
 			val rewrite = builder.rewrite
 			target.tail.forEach[rewrite.remove(it, null)]
-			
 			val group = rewrite.createGroupNode(replacement)	
-			rewrite.replace( target.head, group, null)
+			rewrite.replace(target.head, group, null)
 			val edits = rewrite.rewriteAST(document, null)
 			edits.apply(document)
-			
 			
 			val iCompUnit = Utils.getICompilationUnit(target.head)
 			val compUnit = Utils.parseSourceCode(iCompUnit)
 			val assignmentsAfterReplacement = Check.getAssignmentsInClass(compUnit.types.findFirst[
 				(it as TypeDeclaration).resolveBinding.qualifiedName == targetTypeDecl.resolveBinding.qualifiedName] as TypeDeclaration)
 			
-			compUnit.recordModifications			
+			compUnit.recordModifications
 			val it1 = assignmentBeforeReplacement.iterator
 			val it2 = assignmentsAfterReplacement.iterator
-			
 			while (it1.hasNext) {
 				val value1 = it1.next
 				val value2 = it2.next
-				if(!(value1.leftHandSide as SimpleName).resolveBinding.isEqualTo((value2.leftHandSide as SimpleName).resolveBinding)) {
+				if(Check.referredField(value1.leftHandSide as SimpleName) !== null && Check.referredField(value2.leftHandSide as SimpleName) === null) {
 					val thisExpression = compUnit.AST.newThisExpression
 					val fieldAccess = compUnit.AST.newFieldAccess
 					fieldAccess.name.identifier = (value2.leftHandSide as SimpleName).identifier
@@ -152,6 +150,7 @@ class BlockRefactoring implements Refactoring {
 					value2.leftHandSide = fieldAccess
 				}
 			}
+			
 			Utils.applyChanges(compUnit, document)
 			true
 		} catch (Exception e) {

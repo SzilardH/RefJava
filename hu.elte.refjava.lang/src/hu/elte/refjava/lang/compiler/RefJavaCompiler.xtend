@@ -40,7 +40,7 @@ class RefJavaCompiler extends XbaseCompiler {
 	}
 
 	def dispatch void toJavaExpression(MetaVariable metaVar, ITreeAppendable it) {
-		if(metaVar.type == MetaVariableType.SIMPLE) {
+		if(metaVar.type == MetaVariableType.CODE) {
 			append('''bindings.get("«metaVar.name»")''')
 			if (!metaVar.multi) {
 				append(".get(0)")

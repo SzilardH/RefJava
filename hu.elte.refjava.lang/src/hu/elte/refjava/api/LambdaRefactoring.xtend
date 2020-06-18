@@ -19,6 +19,7 @@ import static hu.elte.refjava.api.Check.*
 class LambdaRefactoring implements Refactoring {
 	
 	List<? extends ASTNode> target
+	List<TypeDeclaration> allTypeDecl
 	IDocument document
 	
 	val PatternMatcher matcher
@@ -45,14 +46,14 @@ class LambdaRefactoring implements Refactoring {
 		parameterBindings.clear
 		visibilityBindings.clear
 		argumentBindings.clear
-		setMetaVariables()
+		setMetaVariables
 		this.matcher = new PatternMatcher(PatternParser.parse(matchingPatternString))
 		this.builder = new ASTBuilder(PatternParser.parse(replacementPatternString))
 		this.matchingString = matchingPatternString
 		this.replacementString = replacementPatternString
-		val matchingPatternsFirstElement = PatternParser.parse(matchingPatternString).patterns.get(0)
-		if (matchingPatternsFirstElement instanceof PMemberFeatureCall && (matchingPatternsFirstElement as PMemberFeatureCall).memberCallTarget instanceof PConstructorCall &&
-			((matchingPatternsFirstElement as PMemberFeatureCall).memberCallTarget as PConstructorCall).anonInstance) {
+
+		val matchingPatterns = PatternParser.parse(matchingPatternString).patterns
+		if (matchingPatterns.exists[Utils.isValidLambdaExpression(it)]) {
 			this.refactoringType = RefactoringType.MODIFICATION
 		} else {
 			this.interfaceToModify = null
@@ -63,17 +64,9 @@ class LambdaRefactoring implements Refactoring {
 	override init(List<? extends ASTNode> target, IDocument document, List<TypeDeclaration> allTypeDeclInWorkspace) {
 		this.target = target
 		this.document = document
+		this.allTypeDecl = allTypeDeclInWorkspace
 		Check.allTypeDeclarationInWorkSpace = allTypeDeclInWorkspace
 		
-		if(refactoringType == RefactoringType.MODIFICATION) {
-			val matchingLambdaExpression = PatternParser.parse(matchingString).patterns.get(0) as PMemberFeatureCall
-			val interfaceName = if((matchingLambdaExpression.memberCallTarget as PConstructorCall).metaName !== null) {
-				nameBindings.get(((matchingLambdaExpression.memberCallTarget as PConstructorCall).metaName as PMetaVariable).name)
-			} else {
-				(matchingLambdaExpression.memberCallTarget as PConstructorCall).name
-			}
-			this.interfaceToModify = allTypeDeclInWorkspace.findFirst[it.name.identifier == interfaceName]
-		}
 	}
 	
 	override apply() {
@@ -139,7 +132,6 @@ class LambdaRefactoring implements Refactoring {
 	def protected check() {
 		
 		if(refactoringType == RefactoringType.NEW) {
-			
 			val iCompUnit = Utils.getICompilationUnit(target.head)
 			val compUnit = Utils.parseSourceCode(iCompUnit)
 			
@@ -151,13 +143,18 @@ class LambdaRefactoring implements Refactoring {
 			}
 			
 			val newLambdaExpression = builder.build(replacementPattern, compUnit.AST, bindings, nameBindings, typeBindings, parameterBindings, visibilityBindings, argumentBindings, replacementTypeReferenceString).head as ExpressionStatement
-			
-			println("ASD")
 			return isFresh(getLambdaName(newLambdaExpression))
-				&& (lambdaVariableWrites(getLambdaBody(newLambdaExpression)).forall[isDeclaredIn(it, getLambdaBody(newLambdaExpression))]
-				|| isOnlyHaveAssignmentsWithFieldAccess(target))
+				&& (lambdaVariableAssignments(getLambdaBody(newLambdaExpression)).forall[isDeclaredIn(it, getLambdaBody(newLambdaExpression))])
 				
 		} else {
+			
+			val matchingLambdaExpression = PatternParser.parse(matchingString).patterns.get(0) as PMemberFeatureCall
+			val interfaceName = if((matchingLambdaExpression.memberCallTarget as PConstructorCall).metaName !== null) {
+				nameBindings.get(((matchingLambdaExpression.memberCallTarget as PConstructorCall).metaName as PMetaVariable).name)
+			} else {
+				(matchingLambdaExpression.memberCallTarget as PConstructorCall).name
+			}
+			this.interfaceToModify = allTypeDecl.findFirst[it.name.identifier == interfaceName]
 			
 			return references(interfaceToModify).size == 1 &&
 				contains(references(interfaceToModify), target)

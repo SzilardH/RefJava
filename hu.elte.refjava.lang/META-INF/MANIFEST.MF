@@ -22,8 +22,9 @@ Require-Bundle: org.eclipse.xtext,
  org.eclipse.xtext.testing;bundle-version="2.15.0",
  com.google.guava,
  org.eclipse.xtend.lib.macro,
- org.junit
-Bundle-RequiredExecutionEnvironment: JavaSE-12
+ org.junit,
+ org.eclipse.emf.ecore.xcore;bundle-version="1.11.0"
+Bundle-RequiredExecutionEnvironment: JavaSE-1.8
 Export-Package: hu.elte.refjava.api,
  hu.elte.refjava.api.patterns,
  hu.elte.refjava.lang,

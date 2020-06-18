@@ -15,6 +15,7 @@ import org.eclipse.jface.text.Document
 import org.eclipse.jface.text.IDocument
 
 import static hu.elte.refjava.api.Check.*
+import hu.elte.refjava.lang.refJava.Visibility
 
 class ClassRefactoring implements Refactoring {
 	
@@ -46,7 +47,7 @@ class ClassRefactoring implements Refactoring {
 		parameterBindings.clear
 		visibilityBindings.clear
 		argumentBindings.clear
-		setMetaVariables()
+		setMetaVariables
 		this.matcher = new PatternMatcher(PatternParser.parse(matchingPatternString))
 		this.builder = new ASTBuilder(PatternParser.parse(replacementPatternString))
 		this.matchingString = matchingPatternString
@@ -154,11 +155,10 @@ class ClassRefactoring implements Refactoring {
 			val List<ASTNode> definition = newArrayList
 			definition.add(newMethodInClass)
 			
-			
 			val overrideCheck = if(isOverrideIn(getMethodName(definition), parameters(definition), enclosingClass(target))) {
 					!isLessVisible(visibility(definition), visibility(overridenMethodFrom(getMethodName(definition), parameters(definition), enclosingClass(target))))
 					&& isSubTypeOf(type(definition), type(overridenMethodFrom(getMethodName(definition), parameters(definition), enclosingClass(target))))
-					&& visibility(overridenMethodFrom(getMethodName(definition), parameters(definition), enclosingClass(target))) != "public" 
+					&& visibility(overridenMethodFrom(getMethodName(definition), parameters(definition), enclosingClass(target))) != Visibility.PUBLIC
 					&& publicReferences(getMethodName(definition), parameters(definition), enclosingClass(target)).empty } else { true }
 			
 			val safeCheck = isUniqueMethodIn(getMethodName(definition), parameters(definition), enclosingClass(target))
@@ -179,7 +179,7 @@ class ClassRefactoring implements Refactoring {
 				val overrideCheck = if(isOverrideIn(getMethodName(target), parameters(target), superClass(enclosingClass(target)))) {
 						!isLessVisible(visibility(target), visibility(overridenMethodFrom(getMethodName(target), parameters(target), superClass(enclosingClass(target))))) 
 						&& isSubTypeOf(type(target), type(overridenMethodFrom(getMethodName(target), parameters(target), superClass(enclosingClass(target)))))
-						&& visibility(overridenMethodFrom(getMethodName(target), parameters(target), superClass(enclosingClass(target)))) != "public" 
+						&& visibility(overridenMethodFrom(getMethodName(target), parameters(target), superClass(enclosingClass(target)))) != Visibility.PUBLIC
 						&& publicReferences(getMethodName(target), parameters(target), superClass(enclosingClass(target))).empty } else { true } 
 				
 				return hasSuperClass(enclosingClass(target))
@@ -199,7 +199,7 @@ class ClassRefactoring implements Refactoring {
 					&& privateCheck
 					&& isUniqueFieldIn(getFragmentNames(target), superClass(enclosingClass(target)))
 					&& publicReferences(getFragmentNames(target), superClass(enclosingClass(target))).empty
-					&& privateReferences(getFragmentNames(target), superClass(enclosingClass(target))).forall [
+					&& nonPublicReferences(getFragmentNames(target), superClass(enclosingClass(target))).forall [
 						isSubTypeOf(Check.type(target), type(referredField(it))) ]
 			}
 			false
@@ -261,6 +261,7 @@ class ClassRefactoring implements Refactoring {
 					targetClass.bodyDeclarations.findFirst[it instanceof FieldDeclaration && 
 						((it as FieldDeclaration).fragments.head as VariableDeclarationFragment).name.identifier == ((target.head as FieldDeclaration).fragments.head as VariableDeclarationFragment).name.identifier]
 				}
+				
 				superClass.bodyDeclarations.add(objectToInsertOrMove)
 				targetClass.bodyDeclarations.remove(methodOrFieldToDelete)
 				

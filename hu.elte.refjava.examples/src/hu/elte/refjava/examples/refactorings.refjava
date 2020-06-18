@@ -1,56 +1,73 @@
 package hu.elte.refjava.examples;
 
-block refactoring identity()
-	{ target }
-	~~~~~~~~~~~~
-	target ;
+local refactoring introduceEmptyBlockAfter()
+	target
+	~~~~~~~
+	target ; {}
 
 
-local refactoring insertEmptyBlockAfter()
-	#s ; #s2
-	~~~~~~~~~
-	#s ; {}   
+block refactoring moveIntoNextBlock()
+	target ; { #s1.. } ; #s2..
+	~~~~~~~~~~~~~~~~~~~~~~~~~~
+	{ target ; #s1.. } ; #s2..
 when
-	isInsideBlock(#s)
-	
-
-local refactoring test()
-	#s1 ; #s ; #s2.. 
-	~~~~~~~~~    
-	#s1 
+	precondition
+		isSingle(target)
+		&& if(isVariableDeclaration(target)) { !isReferencedIn(asVariableDeclaration(target), #s2..) }
+		   else true
 
 
-local refactoring moveIntoNextBlock()
-	#s1.. ; { #s2.. } ; #s3 ; { #s4.. } ; #s5  
-	~~~~~~~~~~~~~~~~~~~~~
-	{ #s1.. ; #s2.. } ; #s3 ; { #s5 ; #s4.. } 
-/*when
-	!isVariableDeclaration(#s1) ||
-	!isReferencedIn(asVariableDeclaration(#s1),
-		blockRemainder(#s3))*/
+block refactoring moveToTop()
+	#s.. ; target
+	~~~~~~~~~~~~~
+	target ; #s..
+target
+	type#T name#N
 
 
-block refactoring blockIdentity()
-	#s1 ; target ; #s2
-	~~~~~~~~
-	#s1 ; target ; #s2
+lambda refactoring wrapInVoidLambda()
+	#s.. 
+	~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	new name#N() { public void apply() { #s.. } }.apply()
+when
+	precondition
+		!containsValueReturn(#s..) 
+		&& if (containsVoidReturn(#s..)) { isLastExecutionNode(getVoidReturn(#s..)) } 
+		   else true
 
-	
-block refactoring blocktest()
-	target ; { #s2.. } ; #s3
-	~~~~~~~~~~~~~~~~~~~~~
-	{ target ; #s2.. } ; #s3
-/*when
-	!isVariableDeclaration(target) ||
-	!isReferencedIn(asVariableDeclaration(target),
-		blockRemainder(#s3))
-*/			
-lambda refactoring l()
-	#s2
+
+lambda refactoring lambdaModfification()
+	new name#N1() { public void apply() { #s.. } }.apply()
 	~~~~~~
-	#s2
+	new name#N2() { public void apply() { #s.. } }.apply()
+when
+	assignment
+		name#N2 = "newLambda2"
+	precondition
+		isFresh(name#N2)
 	
+
+class refactoring newMethod()
+	new name#N() { public void apply(parameter#P..) { #s2.. } }.apply(argument#A..)
+	~~~~~~
+	newMethod(argument#A..)
+definition in class
+	void newMethod(parameter#P..) { #s2.. }
+
+
+class refactoring liftField()
+	visibility#V type#T name#N ;
+	~~~~~~~
+	nothing
+definition in super
+	target
+
+
+class refactoring liftMethod()
+	visibility#V type#T name#N(parameter#P..) { #s.. }
+	~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	nothing
+definition in super
+	target
+
 	
-
-
-

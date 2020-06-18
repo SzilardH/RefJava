@@ -32,7 +32,7 @@ SchemeInstanceRule:
 		definitionPattern=Pattern)?
 	('when'
 		('assignment'
-			assignment=AssignmentList)?
+			assignments=AssignmentList)?
 		('precondition'
 			precondition=XExpression)?
 	)?
@@ -68,8 +68,8 @@ CompositeRefactoringRule:
 // Patterns //
 //////////////
 
-enum MetaVariableType :
-	SIMPLE='#' | NAME='name#' | TYPE='type#' | PARAMETER='parameter#' | VISIBILITY="visibility#" | ARGUMENT="argument#"
+enum MetaVariableType:
+	CODE='#' | NAME='name#' | TYPE='type#' | PARAMETER='parameter#' | VISIBILITY='visibility#' | ARGUMENT='argument#'
 ;
 
 PMetaVariable returns PExpression:
@@ -89,7 +89,7 @@ PExpressionOrVarDeclaration returns PExpression:
 PDeclaration returns PExpression:
 	PVariableDeclaration (
 		{PMethodDeclaration.prefix=current} '(' (
-			arguments+=FullJvmFormalParameter (',' arguments+=FullJvmFormalParameter)* | metaArguments=PMetaVariable
+			parameters+=FullJvmFormalParameter (',' parameters+=FullJvmFormalParameter)* | metaParameters=PMetaVariable
 		)? ')' (body=PBlockExpression)
 	)?
 ;
@@ -115,8 +115,7 @@ PMemberFeatureCall returns PExpression:
 	PPrimaryExpression (
 		=>({PMemberFeatureCall.memberCallTarget=current} ".")
 		(feature=IdOrSuper | metaFeature=PMetaVariable) (
-			//=>'(' (memberCallArguments+=PMetaVariable (',' memberCallArguments+=PMetaVariable)*)? ')'   //currently restricted to PMetaVariable, should be PExpression
-			=>'(' memberCallArguments=PMetaVariable? ')' 
+			=>'(' memberCallArguments=PMetaVariable? ')'  //currently restricted to PMetaVariable, should be PExpression
 		)?
 	)*
 ;
@@ -133,9 +132,8 @@ PPrimaryExpression returns PExpression
 ;
 
 PConstructorCall returns PExpression:
-	{PConstructorCall} 'new' (name=ValidID | metaName=PMetaVariable) //constructor=[types::JvmConstructor|QualifiedName] 
-	//=>'(' (arguments+=PMetaVariable (',' arguments+=PMetaVariable)*)? ')' (            //currently restricted to PMetaVariable, should be PExpression
-	=>'(' arguments=PMetaVariable? ')' (
+	{PConstructorCall} 'new' (name=ValidID | metaName=PMetaVariable)        
+	=>'(' arguments=PMetaVariable? ')' (  //currently restricted to PMetaVariable, should be PExpression
 		anonInstance?='{' (elements+=PDeclaration =>(';' elements+=PDeclaration)* ';'?)? '}'
 			// =>: local, distinguishes semicolons
 	)?
@@ -150,19 +148,17 @@ PBlockExpression returns PExpression:
 
 PFeatureCall returns PExpression:
 	{PFeatureCall} (
-		feature=IdOrSuper (
-			//=>'(' (featureCallArguments+=PExpression (',' featureCallArguments+=PExpression)*)? ')'     //currently restricted to PMetaVariable, should be PExpression
-			=>'(' featureCallArguments=PMetaVariable? ')'
+		feature=IdOrSuper (   
+			=>'(' featureCallArguments=PMetaVariable? ')'  //currently restricted to PMetaVariable, should be PExpression
 		)?
 	) | (
-		metaFeature=PMetaVariable
-			//=>'(' (featureCallArguments+=PExpression (',' featureCallArguments+=PExpression)*)? ')'     //currently restricted to PMetaVariable, should be PExpression
-			=>'(' featureCallArguments=PMetaVariable? ')' 
+		metaFeature=PMetaVariable  
+			=>'(' featureCallArguments=PMetaVariable? ')'  //currently restricted to PMetaVariable, should be PExpression
 	)
 ;
 
 PReturnExpression returns PExpression:
-	{PReturnExpression} 'return' (->expression=PExpression)?
+	{PReturnExpression} 'return' (->expression=PMetaVariable)?
 ;
 
 PTargetExpression returns PExpression:

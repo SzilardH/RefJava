@@ -23,13 +23,13 @@ class LocalRefactoring implements Refactoring {
 	protected String definitionTypeReferenceString
 	List<ASTNode> replacement
 
-	protected new(String matchingPatternString, String replacementPatternString) {
+	new(String matchingPatternString, String replacementPatternString) {
 		nameBindings.clear
 		typeBindings.clear
 		parameterBindings.clear
 		visibilityBindings.clear
 		argumentBindings.clear
-		setMetaVariables()
+		setMetaVariables
 		this.matcher = new PatternMatcher(PatternParser.parse(matchingPatternString))
 		this.builder = new ASTBuilder(PatternParser.parse(replacementPatternString))
 	}
@@ -93,7 +93,12 @@ class LocalRefactoring implements Refactoring {
 			val rewrite = builder.rewrite
 			target.tail.forEach[rewrite.remove(it, null)]
 			
-			val group = rewrite.createGroupNode(replacement)
+			val group = if (replacement.size == 0) {
+				null
+			} else {
+				rewrite.createGroupNode(replacement)
+			}
+			
 			rewrite.replace(target.head, group, null)
 			val edits = rewrite.rewriteAST(document, null)
 			edits.apply(document)

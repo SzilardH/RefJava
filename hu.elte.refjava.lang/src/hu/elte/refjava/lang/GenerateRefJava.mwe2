@@ -20,10 +20,6 @@ Workflow {
 					enabled = true
 				}
 				
-				eclipsePluginTest = {
-					enabled = true
-				}
-
 				createEclipseMetaData = true
 			}
 
