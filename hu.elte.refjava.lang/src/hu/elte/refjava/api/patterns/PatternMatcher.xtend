@@ -523,6 +523,7 @@ class PatternMatcher {
 		var List<PExpression> postTargetExpression = patterns.clone.reverse.takeWhile[ !(it instanceof PTargetExpression) ].toList.reverse
 		
 		val List<?super ASTNode> targetEnvironment = newArrayList
+		// If the user use the program as we intended, the selectedNodes.head.parent will be direct contents of a block.
 		targetEnvironment.addAll( (selectedNodes.head.parent as Block).statements )
 		
 		var List<ASTNode> preSelectedNodes = (targetEnvironment as List<?extends ASTNode>).clone.takeWhile[ it != selectedNodes.head ].toList
