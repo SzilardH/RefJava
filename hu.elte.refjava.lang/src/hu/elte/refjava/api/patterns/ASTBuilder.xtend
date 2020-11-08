@@ -338,6 +338,7 @@ class ASTBuilder {
 	}
 	
 	//method invocation (without expression) builder
+	// This function is intended for method invocation without expression. Not to be confused with field access. (Field access don't have parantheses at the end)
 	def private dispatch doBuild(PFeatureCall featureCall) {
 		val methodInv = ast.newMethodInvocation
 		
