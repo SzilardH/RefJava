@@ -9,8 +9,12 @@ Bundle-ActivationPolicy: lazy
 Require-Bundle: hu.elte.refjava,
  org.eclipse.xtext.ide,
  org.eclipse.xtext.xbase.ide,
- org.antlr.runtime;bundle-version="[3.2.0,3.2.1)"
-Bundle-RequiredExecutionEnvironment: JavaSE-10
-Export-Package: hu.elte.refjava.lang.ide.contentassist.antlr,
+ org.antlr.runtime;bundle-version="[3.2.0,3.2.1)",
+ com.google.guava,
+ org.eclipse.xtext.xbase.lib,
+ org.eclipse.xtend.lib,
+ org.eclipse.xtend.lib.macro
+Bundle-RequiredExecutionEnvironment: JavaSE-1.8
+Export-Package: hu.elte.refjava.lang.ide,
+ hu.elte.refjava.lang.ide.contentassist.antlr,
  hu.elte.refjava.lang.ide.contentassist.antlr.internal
-

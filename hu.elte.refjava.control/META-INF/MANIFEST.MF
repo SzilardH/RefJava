@@ -17,4 +17,8 @@ Require-Bundle: org.eclipse.ui,
  org.eclipse.xtext.ui;bundle-version="2.15.0",
  hu.elte.refjava;bundle-version="1.0.0"
 Automatic-Module-Name: hu.elte.refjava.control
-Bundle-RequiredExecutionEnvironment: JavaSE-10
+Bundle-RequiredExecutionEnvironment: JavaSE-1.8
+Export-Package: hu.elte.refjava.control.handlers,
+ hu.elte.refjava.control.library,
+ hu.elte.refjava.control.utils,
+ hu.elte.refjava.control.wizards

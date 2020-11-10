@@ -1,20 +1,73 @@
 package hu.elte.refjava.examples;
 
-local refactoring identity()
-	#s..
-	~~~~
-	#s..
+local refactoring introduceEmptyBlockAfter()
+	target
+	~~~~~~~
+	target ; {}
 
-local refactoring insertEmptyBlockAfter()
-	#s..
-	~~~~~~~~~
-	#s.. ; {}
 
-local refactoring moveIntoNextBlock()
-	#s1 ; { #s2.. } ; #s3
-	~~~~~~~~~~~~~~~~~~~~~
-	{ #s1 ; #s2.. } ; #s3
+block refactoring moveIntoNextBlock()
+	target ; { #s1.. } ; #s2..
+	~~~~~~~~~~~~~~~~~~~~~~~~~~
+	{ target ; #s1.. } ; #s2..
 when
-	!isVariableDeclaration(#s1) ||
-	!isReferencedIn(asVariableDeclaration(#s1),
-		blockRemainder(#s3))
+	precondition
+		isSingle(target)
+		&& if(isVariableDeclaration(target)) { !isReferencedIn(asVariableDeclaration(target), #s2..) }
+		   else true
+
+
+block refactoring moveToTop()
+	#s.. ; target
+	~~~~~~~~~~~~~
+	target ; #s..
+target
+	type#T name#N
+
+
+lambda refactoring wrapInVoidLambda()
+	#s.. 
+	~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	new name#N() { public void apply() { #s.. } }.apply()
+when
+	precondition
+		!containsValueReturn(#s..) 
+		&& if (containsVoidReturn(#s..)) { isLastExecutionNode(getVoidReturn(#s..)) } 
+		   else true
+
+
+lambda refactoring lambdaModfification()
+	new name#N1() { public void apply() { #s.. } }.apply()
+	~~~~~~
+	new name#N2() { public void apply() { #s.. } }.apply()
+when
+	assignment
+		name#N2 = "newLambda2"
+	precondition
+		isFresh(name#N2)
+	
+
+class refactoring newMethod()
+	new name#N() { public void apply(parameter#P..) { #s2.. } }.apply(argument#A..)
+	~~~~~~
+	newMethod(argument#A..)
+definition in class
+	void newMethod(parameter#P..) { #s2.. }
+
+
+class refactoring liftField()
+	visibility#V type#T name#N ;
+	~~~~~~~
+	nothing
+definition in super
+	target
+
+
+class refactoring liftMethod()
+	visibility#V type#T name#N(parameter#P..) { #s.. }
+	~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	nothing
+definition in super
+	target
+
+	

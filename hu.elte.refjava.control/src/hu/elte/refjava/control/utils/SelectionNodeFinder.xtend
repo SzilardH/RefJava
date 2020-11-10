@@ -17,7 +17,7 @@ class SelectionNodeFinder {
 		if (coveringNode == finder.coveredNode) {
 			return #[coveringNode]
 		}
-
+		
 		val selectionRange = Range.closed(selection.offset, selection.offset + selection.length)
 		return coveringNode.children.filter [
 			val nodeRange = Range.closed(startPosition, startPosition + length)
@@ -36,5 +36,4 @@ class SelectionNodeFinder {
 	def private static dispatch getChildren(ASTNode coveringNode) {
 		#[coveringNode]
 	}
-
 }

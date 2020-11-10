@@ -31,8 +31,21 @@ SchemeInstanceRule:
 	('in' definitionLocation=InDefinitionLocation)?
 		definitionPattern=Pattern)?
 	('when'
-		precondition=XExpression)?
+		('assignment'
+			assignments=AssignmentList)?
+		('precondition'
+			precondition=XExpression)?
+	)?
 ;
+
+AssignmentList:
+	assignment+=MetaVariableAssignment =>(';' assignment+=MetaVariableAssignment)* ';'?
+;
+
+MetaVariableAssignment:
+	{MetaVariableAssignment} metaVariable=PMetaVariable '=' value=XExpression
+;
+
 
 enum SchemeType:
 	LOCAL='local' | BLOCK='block' | LAMBDA='lambda' | CLASS='class'
@@ -55,8 +68,12 @@ CompositeRefactoringRule:
 // Patterns //
 //////////////
 
+enum MetaVariableType:
+	CODE='#' | NAME='name#' | TYPE='type#' | PARAMETER='parameter#' | VISIBILITY='visibility#' | ARGUMENT='argument#'
+;
+
 PMetaVariable returns PExpression:
-	{PMetaVariable} '#' name=ID multi?='..'?
+	{PMetaVariable} type=MetaVariableType name=ID multi?='..'?
 ;
 
 Pattern:
@@ -72,8 +89,8 @@ PExpressionOrVarDeclaration returns PExpression:
 PDeclaration returns PExpression:
 	PVariableDeclaration (
 		{PMethodDeclaration.prefix=current} '(' (
-			arguments+=FullJvmFormalParameter (',' arguments+=FullJvmFormalParameter)* | metaArguments=PMetaVariable
-		)? ')' (body=PBlockExpression | metaBody=PMetaVariable)
+			parameters+=FullJvmFormalParameter (',' parameters+=FullJvmFormalParameter)* | metaParameters=PMetaVariable
+		)? ')' (body=PBlockExpression)
 	)?
 ;
 
@@ -81,7 +98,7 @@ PVariableDeclaration returns PVariableDeclaration:
 	=>({PVariableDeclaration} ( // =>: global, see PExpressionOrVarDeclaration->...->PFeatureCall
 		(visibility=Visibility | metaVisibility=PMetaVariable)? // for methods
 		(type=JvmTypeReference | metaType=PMetaVariable)
-		(name=ValidID | metaName=PMetaVariable)
+		(name=ValidID | metaName=PMetaVariable) 
 	)) ('=' right=PExpression)? 
 ;
 
@@ -93,11 +110,12 @@ PExpression returns PExpression:
 	PMemberFeatureCall
 ;
 
+
 PMemberFeatureCall returns PExpression:
 	PPrimaryExpression (
 		=>({PMemberFeatureCall.memberCallTarget=current} ".")
 		(feature=IdOrSuper | metaFeature=PMetaVariable) (
-			=>'(' (memberCallArguments+=PExpression (',' memberCallArguments+=PExpression)*)? ')'
+			=>'(' memberCallArguments=PMetaVariable? ')'  //currently restricted to PMetaVariable, should be PExpression
 		)?
 	)*
 ;
@@ -114,8 +132,8 @@ PPrimaryExpression returns PExpression
 ;
 
 PConstructorCall returns PExpression:
-	{PConstructorCall} 'new' constructor=[types::JvmConstructor|QualifiedName]
-	=>'(' (arguments+=PExpression (',' arguments+=PExpression)*)? ')' (
+	{PConstructorCall} 'new' (name=ValidID | metaName=PMetaVariable)        
+	=>'(' arguments=PMetaVariable? ')' (  //currently restricted to PMetaVariable, should be PExpression
 		anonInstance?='{' (elements+=PDeclaration =>(';' elements+=PDeclaration)* ';'?)? '}'
 			// =>: local, distinguishes semicolons
 	)?
@@ -130,17 +148,17 @@ PBlockExpression returns PExpression:
 
 PFeatureCall returns PExpression:
 	{PFeatureCall} (
-		feature=IdOrSuper (
-			=>'(' (featureCallArguments+=PExpression (',' featureCallArguments+=PExpression)*)? ')'
+		feature=IdOrSuper (   
+			=>'(' featureCallArguments=PMetaVariable? ')'  //currently restricted to PMetaVariable, should be PExpression
 		)?
 	) | (
-		metaFeature=PMetaVariable
-			=>'(' (featureCallArguments+=PExpression (',' featureCallArguments+=PExpression)*)? ')'
+		metaFeature=PMetaVariable  
+			=>'(' featureCallArguments=PMetaVariable? ')'  //currently restricted to PMetaVariable, should be PExpression
 	)
 ;
 
 PReturnExpression returns PExpression:
-	{PReturnExpression} 'return' (->expression=PExpression)?
+	{PReturnExpression} 'return' (->expression=PMetaVariable)?
 ;
 
 PTargetExpression returns PExpression:
@@ -174,10 +192,15 @@ XPrimaryExpression returns xbase::XExpression
 	| XTryCatchFinallyExpression
 	| XParenthesizedExpression
 	| MetaVariable
+	| TargetExpression
 ;
 
 MetaVariable returns xbase::XExpression:
-	{MetaVariable} '#' name=ID multi?='..'?
+	{MetaVariable} type=MetaVariableType name=ID multi?='..'?
+;
+
+TargetExpression returns xbase::XExpression:
+	{TargetExpression} 'target'
 ;
 
 @Override

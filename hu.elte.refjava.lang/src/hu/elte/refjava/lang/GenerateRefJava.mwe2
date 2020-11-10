@@ -11,11 +11,15 @@ Workflow {
 			project = StandardProjectConfig {
 				baseName = "hu.elte.refjava.lang"
 				rootPath = rootPath
-
+				
+				runtimeTest = {
+					enabled = true
+				}
+				
 				eclipsePlugin = {
 					enabled = true
 				}
-
+				
 				createEclipseMetaData = true
 			}
 
@@ -35,6 +39,10 @@ Workflow {
 
 			validator = {
 				generateDeprecationValidation = true
+			}
+			
+			junitSupport = {
+				junitVersion = "5"
 			}
 		}
 	}
